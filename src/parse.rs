@@ -41,11 +41,16 @@ impl<'a> Stream<'a> {
 
             ')' => Err(Error::UnmatchedRightParen),
 
-            '\'' => Err(Error::IllegalToken),
+            '\'' => self.quoted("quote"),
 
-            '`' => Err(Error::IllegalToken),
+            '`' => self.quoted("quasi"),
 
-            ',' => Err(Error::IllegalToken),
+            ',' => if self.lookahead() == Some('@') {
+                self.input.next();
+                self.quoted("unsplice")
+            } else {
+                self.quoted("unquote")
+            },
 
             w => {
                 let mut name = String::new();
@@ -69,6 +74,13 @@ impl<'a> Stream<'a> {
                 Ok(Val::Symbol(sym))
             },
         }
+    }
+
+    fn quoted(&mut self, name: &'static str) -> Result<Val> {
+        self.next_value().map(|arg| {
+            let name = Val::Symbol(self.names.intern(name));
+            Val::Cons((name, Val::Cons((arg, Val::Nil).into())).into())
+        })
     }
 
     fn list_tail(&mut self) -> Result<Val> {
