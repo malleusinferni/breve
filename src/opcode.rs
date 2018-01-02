@@ -192,6 +192,15 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::QUOTE(arg));
             },
 
+            "let" => {
+                let value = args.pop().ok_or(Error::TooFewArgs)?;
+                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
+                guard(args.is_empty(), || Error::TooManyArgs)?;
+                self.emit(Op::QUOTE(Val::Symbol(name)));
+                self.tr_expr(value)?;
+                self.emit(Op::LET);
+            },
+
             "def" => {
                 let body = args.drain(2 ..).collect();
                 let argv = args.pop().ok_or(Error::TooFewArgs)?;
