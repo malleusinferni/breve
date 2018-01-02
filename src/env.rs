@@ -6,9 +6,15 @@ use super::*;
 #[derive(Clone)]
 pub struct Env(Arc<RefCell<Inner>>);
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum FnKind {
+    Function,
+    Macro,
+}
+
 struct Inner {
     names1: BTreeMap<Symbol, Val>,
-    names2: BTreeMap<Symbol, FnRef>,
+    names2: BTreeMap<Symbol, (FnKind, FnRef)>,
     parent: Option<Env>,
 }
 
@@ -29,7 +35,7 @@ impl Env {
         })
     }
 
-    pub fn lookup2(&self, sym: Symbol) -> Option<FnRef> {
+    pub fn lookup2(&self, sym: Symbol) -> Option<(FnKind, FnRef)> {
         let env = self.0.borrow();
         let parent = env.parent.clone();
 
@@ -48,7 +54,7 @@ impl Env {
         }
     }
 
-    pub fn insert2(&self, sym: Symbol, func: FnRef) -> Result<()> {
+    pub fn insert2(&self, sym: Symbol, func: (FnKind, FnRef)) -> Result<()> {
         let mut env = self.0.borrow_mut();
         env.names2.insert(sym, func);
         Ok(())

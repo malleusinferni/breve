@@ -141,6 +141,12 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    fn is_macro(&mut self, name: Symbol) -> bool {
+        self.interpreter.frame().ok().and_then(|frame| {
+            frame.env.lookup2(name)
+        }).map(|(kind, _)| kind == FnKind::Macro).unwrap_or(false)
+    }
+
     fn tr_expr(&mut self, expr: Val) -> Result<()> {
         match expr {
             Val::Symbol(sym) => {
@@ -196,10 +202,6 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::DEF);
             },
 
-            "syn" => {
-                unimplemented!("Macros")
-            },
-
             "lambda" => {
                 let body = args.drain(1 ..).collect();
                 let argv = args.pop().ok_or(Error::TooFewArgs)?;
@@ -225,7 +227,20 @@ impl<'a> Compiler<'a> {
                 self.set_label(after)?;
             },
 
-            _ => {
+            "syn" => {
+                let body = args.drain(2 ..).collect();
+                let argv = args.pop().ok_or(Error::TooFewArgs)?;
+                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
+                guard(args.is_empty(), || Error::TooManyArgs)?;
+                self.emit(Op::QUOTE(Val::Symbol(name)));
+                self.tr_lambda(argv, body)?;
+                self.emit(Op::SYN);
+            },
+
+            _ => if self.is_macro(name) {
+                let thing = self.interpreter.expand(name, args)?;
+                self.tr_expr(thing)?;
+            } else {
                 self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.emit(Op::LOAD2);
 

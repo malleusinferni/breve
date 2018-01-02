@@ -12,7 +12,7 @@ pub mod opcode;
 
 pub type Result<T, E=Error> = std::result::Result<T, E>;
 
-pub use env::Env;
+pub use env::*;
 
 #[derive(Clone, Debug, Default)]
 pub struct NameTable(OrderMap<String, Symbol>);
@@ -36,6 +36,7 @@ pub enum Error {
     LabelRedefined,
     ArgRedefined,
     IllegalToken,
+    MacroCall,
     UnimplementedForm { form: String },
 }
 
@@ -328,7 +329,8 @@ impl Interpreter {
     {
         let sym = self.names.intern(name);
         let func = FnRef::Native(Arc::new(body));
-        self.root.insert2(sym, func)?;
+        let kind = FnKind::Function;
+        self.root.insert2(sym, (kind, func))?;
         Ok(())
     }
 
@@ -404,11 +406,15 @@ impl Interpreter {
             Op::DEF => {
                 let body: FnRef = self.pop()?;
                 let name: Symbol = self.pop()?;
-                self.root.insert2(name, body)?;
+                let kind = FnKind::Function;
+                self.root.insert2(name, (kind, body))?;
             },
 
             Op::SYN => {
-                unimplemented!("macros")
+                let body: FnRef = self.pop()?;
+                let name: Symbol = self.pop()?;
+                let kind = FnKind::Macro;
+                self.root.insert2(name, (kind, body))?;
             },
 
             Op::LOAD1 => {
@@ -420,9 +426,13 @@ impl Interpreter {
 
             Op::LOAD2 => {
                 let name: Symbol = self.pop()?;
-                let func: FnRef = self.frame()?.env.lookup2(name)
+                let (kind, func) = self.frame()?.env.lookup2(name)
                     .ok_or(Error::NameNotFound)?;
-                self.push(Val::FnRef(func))?;
+                if let FnKind::Function = kind {
+                    self.push(Val::FnRef(func))?;
+                } else {
+                    return Err(Error::MacroCall);
+                }
             },
 
             Op::STORE1 => {
@@ -497,6 +507,31 @@ impl Interpreter {
         }
 
         Ok(())
+    }
+
+    pub fn expand(&mut self, name: Symbol, args: Vec<Val>) -> Result<Val> {
+        let depth = self.call_stack.len();
+
+        let (kind, func) = self.frame()?.env.lookup2(name)
+            .ok_or(Error::NameNotFound)?;
+
+        if let FnKind::Function = kind {
+            return Err(Error::MacroCall);
+        }
+
+        self.apply(func, args)?;
+
+        while let Some(op) = self.frame()?.fetch() {
+            self.step(op)?;
+
+            if self.call_stack.len() > depth {
+                continue;
+            } else {
+                return self.pop();
+            }
+        }
+
+        Err(Error::MacroCall)
     }
 }
 
