@@ -560,9 +560,23 @@ impl<'a> Fmt<'a> {
             }
 
             self.buf.push(')');
-        } else if let Val::Symbol(sym) = *val {
-            let name = self.names.resolve(sym)?;
-            self.buf.push_str(name);
+        } else {
+            match *val {
+                Val::Symbol(sym) => {
+                    let name = self.names.resolve(sym)?;
+                    self.buf.push_str(name);
+                },
+
+                Val::Int(int) => {
+                    self.buf.push_str(&format!("{}", int));
+                },
+
+                Val::Nil | Val::Cons(_) => unreachable!(),
+
+                Val::FnRef(_) => {
+                    self.buf.push_str("#'function");
+                }
+            }
         }
 
         Ok(())
