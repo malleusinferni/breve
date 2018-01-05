@@ -3,39 +3,35 @@ extern crate breve;
 use breve::*;
 
 fn main() {
-    breve::Interpreter::new().and_then(|mut it| {
-        loop {
-            let input = read()?;
+    let mut it = breve::Interpreter::new().unwrap();
 
-            if input.is_empty() {
-                return Ok(());
-            }
+    loop {
+        let line = readline().unwrap();
 
-            eval_print(&mut it, &input)?;
+        if line.is_empty() {
+            return;
         }
-    }).unwrap();
+
+        eval_print(&mut it, &line).unwrap_or_else(|err| {
+            println!("Error: {:?}", err);
+        });
+    }
 }
 
-fn read() -> Result<String> {
-    use std::io::Result;
+use std::io::{self, stdin, stdout, BufRead, Write};
 
-    let body = || -> Result<String> {
-        use std::io::{stdin, stdout, BufRead, Write};
+fn readline() -> io::Result<String> {
+    let mut buf = String::new();
 
-        let mut buf = String::new();
-
-        let () = {
-            print!("breve> ");
-            stdout().flush()?;
-        };
-
-        let stdin = stdin();
-        stdin.lock().read_line(&mut buf)?;
-
-        Ok(buf)
+    let () = {
+        print!("breve> ");
+        stdout().flush()?;
     };
 
-    body().map_err(|_| Error::NotAList)
+    let stdin = stdin();
+    stdin.lock().read_line(&mut buf)?;
+
+    Ok(buf)
 }
 
 fn eval_print(it: &mut Interpreter, input: &str) -> Result<()> {
