@@ -474,6 +474,7 @@ impl<'a> Eval<'a> {
                 let val = self.pop()?;
                 let name: Symbol = self.pop()?;
                 self.frame().env.insert1(name, val)?;
+                self.push(Val::Symbol(name));
             },
 
             Op::DEF => {
@@ -481,6 +482,7 @@ impl<'a> Eval<'a> {
                 let name: Symbol = self.pop()?;
                 let kind = FnKind::Function;
                 self.root.env.insert2(name, (kind, body))?;
+                self.push(Val::Symbol(name));
             },
 
             Op::SYN => {
@@ -488,6 +490,7 @@ impl<'a> Eval<'a> {
                 let name: Symbol = self.pop()?;
                 let kind = FnKind::Macro;
                 self.root.env.insert2(name, (kind, body))?;
+                self.push(Val::Symbol(name));
             },
 
             Op::LOAD1 => {
