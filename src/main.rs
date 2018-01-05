@@ -40,18 +40,14 @@ fn read() -> Result<String> {
 
 fn eval_print(it: &mut Interpreter, input: &str) -> Result<()> {
     let input = it.parse(input)?;
-    for val in &input {
-        println!("{}", it.show(val.clone())?);
-    }
 
-    let mut result = None;
+    //for val in &input {
+    //    println!("INPUT: {}", it.show(val.clone())?);
+    //}
 
     for expr in input {
-        result = Some(it.eval(expr)?);
-    }
-
-    if let Some(expr) = result {
-        it.show(expr)?;
+        let result = it.eval(expr)?;
+        println!("{}", it.show(result)?);
     }
 
     Ok(())
