@@ -330,6 +330,20 @@ impl Interpreter {
             Ok(Val::Int(sum))
         })?;
 
+        let t = it.names.intern("t");
+
+        it.def("=", move |mut argv| {
+            let lhs = argv.next()?;
+            let rhs = argv.next()?;
+            argv.end()?;
+
+            if lhs == rhs {
+                Ok(Val::Symbol(t))
+            } else {
+                Ok(Val::Nil)
+            }
+        })?;
+
         Ok(it)
     }
 
