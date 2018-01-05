@@ -142,9 +142,9 @@ impl<'a> Compiler<'a> {
     }
 
     fn is_macro(&mut self, name: Symbol) -> bool {
-        self.interpreter.frame().ok().and_then(|frame| {
-            frame.env.lookup2(name)
-        }).map(|(kind, _)| kind == FnKind::Macro).unwrap_or(false)
+        self.interpreter.root.lookup2(name)
+            .map(|(kind, _)| kind == FnKind::Macro)
+            .unwrap_or(false)
     }
 
     fn tr_expr(&mut self, expr: Val) -> Result<()> {

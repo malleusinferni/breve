@@ -81,6 +81,11 @@ pub struct Symbol(usize);
 pub struct Interpreter {
     names: NameTable,
     root: Env,
+}
+
+struct Eval<'a> {
+    _names: &'a mut NameTable,
+    root: Frame,
     call_stack: Vec<Frame>,
 }
 
@@ -277,7 +282,6 @@ impl Interpreter {
         let mut it = Interpreter {
             root: Env::default(),
             names: NameTable::default(),
-            call_stack: vec![],
         };
 
         it.def("cons", |mut argv| {
@@ -341,30 +345,58 @@ impl Interpreter {
 
     pub fn eval(&mut self, val: Val) -> Result<Val> {
         let func = self.compile(vec![val])?;
+        let env = self.root.clone();
 
-        let env = match self.call_stack.last() {
-            Some(frame) => frame.env.clone(),
-            None => self.root.clone(),
-        };
-
-        self.call_stack.push(Frame {
+        let root = Frame {
             env,
             func,
-            data: vec![Val::Nil],
+            data: vec![],
             pc: 0,
-        });
+        };
 
-        while let Some(op) = self.frame()?.fetch() {
-            if let opcode::Op::RET = op {
-                break;
-            } else {
-                self.step(op)?;
-            }
+        let eval = Eval {
+            _names: &mut self.names,
+            root,
+            call_stack: vec![],
+        };
+
+        eval.finish()
+    }
+
+    pub fn expand(&mut self, name: Symbol, args: Vec<Val>) -> Result<Val> {
+        let (kind, func) = self.root.lookup2(name)
+            .ok_or(Error::NameNotFound)?;
+
+        if let FnKind::Function = kind {
+            return Err(Error::MacroCall);
         }
 
-        let val = self.pop()?;
-        self.call_stack.pop();
-        Ok(val)
+        match func {
+            FnRef::Closure(func) => {
+                let (env, func) = func.call(args)?;
+
+                let root = Frame {
+                    env,
+                    func,
+                    data: vec![],
+                    pc: 0,
+                };
+
+                let mut eval = Eval {
+                    root,
+                    _names: &mut self.names,
+                    call_stack: vec![],
+                };
+
+                eval.finish()
+            },
+
+            FnRef::Native(func) => {
+                let mut args = ArgIter(args);
+                args.0.reverse();
+                func(args)
+            },
+        }
     }
 
     pub fn name_table(&mut self) -> &mut NameTable {
@@ -385,56 +417,79 @@ impl Interpreter {
 
         Ok(buf)
     }
+}
 
-    fn frame(&mut self) -> Result<&mut Frame> {
-        self.call_stack.iter_mut().last().ok_or(Error::StackUnderflow)
+impl<'a> Eval<'a> {
+    fn finish(mut self) -> Result<Val> {
+        while let Some(op) = self.frame().fetch() {
+            use opcode::Op;
+
+            if self.call_stack.is_empty() {
+                if let Op::RET = op {
+                    break;
+                }
+            }
+
+            self.step(op)?;
+        }
+
+        Ok(self.root.data.pop().unwrap_or(Val::Nil))
     }
 
-    fn push(&mut self, val: Val) -> Result<()> {
-        self.frame()?.data.push(val); Ok(())
+    fn frame(&mut self) -> &mut Frame {
+        if let Some(frame) = self.call_stack.last_mut() {
+            frame
+        } else {
+            &mut self.root
+        }
+    }
+
+    fn push(&mut self, val: Val) {
+        self.frame().data.push(val);
     }
 
     fn pop<T: Valuable>(&mut self) -> Result<T> {
-        self.frame()?.data.pop().ok_or(Error::StackUnderflow)?.expect()
+        self.frame().data.pop().ok_or(Error::StackUnderflow)?.expect()
     }
 
-    pub fn step(&mut self, op: opcode::Op) -> Result<()> {
+    fn step(&mut self, op: opcode::Op) -> Result<()> {
         use opcode::Op;
 
         match op {
             Op::LET => {
                 let val = self.pop()?;
                 let name: Symbol = self.pop()?;
-                self.frame()?.env.insert1(name, val)?;
+                self.frame().env.insert1(name, val)?;
             },
 
             Op::DEF => {
                 let body: FnRef = self.pop()?;
                 let name: Symbol = self.pop()?;
                 let kind = FnKind::Function;
-                self.root.insert2(name, (kind, body))?;
+                self.root.env.insert2(name, (kind, body))?;
             },
 
             Op::SYN => {
                 let body: FnRef = self.pop()?;
                 let name: Symbol = self.pop()?;
                 let kind = FnKind::Macro;
-                self.root.insert2(name, (kind, body))?;
+                self.root.env.insert2(name, (kind, body))?;
             },
 
             Op::LOAD1 => {
                 let name: Symbol = self.pop()?;
-                let val = self.frame()?.env.lookup1(name)
+                let val = self.frame().env.lookup1(name)
                     .ok_or(Error::NameNotFound)?;
-                self.push(val)?;
+                self.push(val);
             },
 
             Op::LOAD2 => {
                 let name: Symbol = self.pop()?;
-                let (kind, func) = self.frame()?.env.lookup2(name)
+                let (kind, func) = self.frame().env.lookup2(name)
                     .ok_or(Error::NameNotFound)?;
+
                 if let FnKind::Function = kind {
-                    self.push(Val::FnRef(func))?;
+                    self.push(Val::FnRef(func));
                 } else {
                     return Err(Error::MacroCall);
                 }
@@ -443,7 +498,7 @@ impl Interpreter {
             Op::STORE1 => {
                 let name: Symbol = self.pop()?;
                 let val: Val = self.pop()?;
-                self.frame()?.env.update1(name, val)?;
+                self.frame().env.update1(name, val)?;
             },
 
             Op::APPLY(argc) => {
@@ -454,32 +509,34 @@ impl Interpreter {
 
             Op::RET => {
                 let value: Val = self.pop()?;
-                let _ = self.call_stack.pop();
-                self.push(value)?;
+                let _ = self.call_stack.pop()
+                    .ok_or(Error::StackUnderflow)?;
+                self.push(value);
             },
 
             Op::QUOTE(val) => {
-                self.push(val)?;
+                self.push(val);
             },
 
             Op::JUMP(label) => {
-                let pc = self.frame()?.func.jump(label)
+                let pc = self.frame().func.jump(label)
                     .ok_or(Error::NoSuchLabel)?;
-                self.frame()?.pc = pc;
+                self.frame().pc = pc;
             },
 
             Op::JNZ(label) => {
                 let test: Val = self.pop()?;
+
                 if !test.is_nil() {
-                    let pc = self.frame()?.func.jump(label)
+                    let pc = self.frame().func.jump(label)
                         .ok_or(Error::NoSuchLabel)?;
-                    self.frame()?.pc = pc;
+                    self.frame().pc = pc;
                 }
             },
 
             Op::LAMBDA(lambda) => {
-                let closure = lambda.eval(self.frame()?.env.clone());
-                self.push(Val::FnRef(FnRef::Closure(closure.into())))?;
+                let closure = lambda.eval(self.frame().env.clone());
+                self.push(Val::FnRef(FnRef::Closure(closure.into())));
             },
         }
 
@@ -487,9 +544,9 @@ impl Interpreter {
     }
 
     fn collect(&mut self, len: usize) -> Result<Vec<Val>> {
-        let start = self.frame()?.data.len().checked_sub(len)
+        let start = self.frame().data.len().checked_sub(len)
             .ok_or(Error::StackUnderflow)?;
-        Ok(self.frame()?.data.drain(start ..).collect())
+        Ok(self.frame().data.drain(start ..).collect())
     }
 
     fn apply(&mut self, func: FnRef, mut args: Vec<Val>) -> Result<()> {
@@ -497,7 +554,7 @@ impl Interpreter {
             FnRef::Native(native) => {
                 args.reverse();
                 let args = ArgIter(args);
-                self.push(native(args)?)?;
+                self.push(native(args)?);
             },
 
             FnRef::Closure(closure) => {
@@ -512,31 +569,6 @@ impl Interpreter {
         }
 
         Ok(())
-    }
-
-    pub fn expand(&mut self, name: Symbol, args: Vec<Val>) -> Result<Val> {
-        let depth = self.call_stack.len();
-
-        let (kind, func) = self.frame()?.env.lookup2(name)
-            .ok_or(Error::NameNotFound)?;
-
-        if let FnKind::Function = kind {
-            return Err(Error::MacroCall);
-        }
-
-        self.apply(func, args)?;
-
-        while let Some(op) = self.frame()?.fetch() {
-            self.step(op)?;
-
-            if self.call_stack.len() > depth {
-                continue;
-            } else {
-                return self.pop();
-            }
-        }
-
-        Err(Error::MacroCall)
     }
 }
 
