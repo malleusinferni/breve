@@ -608,7 +608,16 @@ impl<'a> Fmt<'a> {
                     self.buf.push_str(&format!("{}", int));
                 },
 
-                Val::Nil | Val::Cons(_) => unreachable!(),
+                Val::Nil => self.buf.push_str("nil"),
+
+                Val::Cons(ref pair) => {
+                    let (ref car, ref cdr) = *pair.as_ref();
+                    self.buf.push('(');
+                    self.write(car)?;
+                    self.buf.push_str(" . ");
+                    self.write(cdr)?;
+                    self.buf.push(')');
+                },
 
                 Val::FnRef(_) => {
                     self.buf.push_str("#'function");
