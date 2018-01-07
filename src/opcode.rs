@@ -71,7 +71,8 @@ pub struct Closure {
 }
 
 impl Lambda {
-    pub fn eval(self, env: Env) -> Closure {
+    pub fn eval(self, env: &Env) -> Closure {
+        let env = env.clone();
         let Lambda { args, body } = self;
         Closure { env, args, body }
     }
@@ -80,7 +81,7 @@ impl Lambda {
 impl Closure {
     pub fn call(&self, argv: Vec<Val>) -> Result<(Env, Func)> {
         let Closure { ref env, ref args, ref body } = *self;
-        let env = Env::with_parent(env.clone());
+        let env = env.child();
 
         let mut argv = argv.into_iter();
         for &name in args {

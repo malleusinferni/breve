@@ -19,11 +19,12 @@ struct Inner {
 }
 
 impl Env {
-    pub fn with_parent(env: Env) -> Self {
-        let parent = Some(env);
+    pub fn child(&self) -> Self {
+        let parent = Some(self.clone());
         let names1 = BTreeMap::default();
         let names2 = BTreeMap::default();
-        Env(Arc::new(RefCell::new(Inner { parent, names1, names2 })))
+        let inner = Inner { parent, names1, names2 };
+        Env(Arc::new(RefCell::new(inner)))
     }
 
     pub fn lookup1(&self, sym: Symbol) -> Option<Val> {
@@ -81,4 +82,25 @@ impl Default for Env {
             parent: None,
         })))
     }
+}
+
+#[test]
+fn closure() {
+    let mut names = NameTable::default();
+    let t = names.intern("t");
+    let u = names.intern("u");
+    let x = names.intern("x");
+
+    let root = Env::default();
+    root.insert1(x, Val::Symbol(t)).unwrap();
+    assert_eq!(t, root.lookup1(x).unwrap().expect().unwrap());
+
+    let child1 = root.child();
+    assert_eq!(t, child1.lookup1(x).unwrap().expect().unwrap());
+
+    child1.update1(x, Val::Symbol(u)).unwrap();
+    assert_eq!(u, root.lookup1(x).unwrap().expect().unwrap());
+
+    let _ = root;
+    assert_eq!(u, child1.lookup1(x).unwrap().expect().unwrap());
 }

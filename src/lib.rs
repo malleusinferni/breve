@@ -586,7 +586,7 @@ impl<'a> Eval<'a> {
             },
 
             Op::LAMBDA(lambda) => {
-                let closure = lambda.eval(self.frame().env.clone());
+                let closure = lambda.eval(&self.frame().env);
                 self.push(Val::FnRef(FnRef::Closure(closure.into())));
             },
         }
