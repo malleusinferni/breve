@@ -344,6 +344,36 @@ impl Interpreter {
             }
         })?;
 
+        it.def("<", move |mut argv| {
+            let mut lhs: i32 = argv.next()?.expect()?;
+
+            for rhs in argv.0.drain(..) {
+                let rhs: i32 = rhs.expect()?;
+                if lhs < rhs {
+                    lhs = rhs;
+                } else {
+                    return Ok(Val::Nil);
+                }
+            }
+
+            Ok(Val::Symbol(t))
+        })?;
+
+        it.def(">", move |mut argv| {
+            let mut lhs: i32 = argv.next()?.expect()?;
+
+            for rhs in argv.0.drain(..) {
+                let rhs: i32 = rhs.expect()?;
+                if lhs > rhs {
+                    lhs = rhs;
+                } else {
+                    return Ok(Val::Nil);
+                }
+            }
+
+            Ok(Val::Symbol(t))
+        })?;
+
         Ok(it)
     }
 
