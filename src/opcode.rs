@@ -211,7 +211,7 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::DEF);
             },
 
-            "lambda" => {
+            "fn" => {
                 let body = args.drain(1 ..).collect();
                 let argv = args.pop().ok_or(Error::TooFewArgs)?;
                 guard(args.is_empty(), || Error::TooManyArgs)?;
