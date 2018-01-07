@@ -246,6 +246,17 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::SYN);
             },
 
+            "call" => {
+                let argc = args.len().checked_sub(1)
+                    .ok_or(Error::TooFewArgs)?;
+
+                for arg in args.drain(..) {
+                    self.tr_expr(arg)?;
+                }
+
+                self.emit(Op::APPLY(argc));
+            },
+
             _ => if self.is_macro(name) {
                 let thing = self.interpreter.expand(name, args)?;
                 self.tr_expr(thing)?;
