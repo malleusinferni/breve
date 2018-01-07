@@ -576,12 +576,21 @@ impl<'a> Eval<'a> {
 
             FnRef::Closure(closure) => {
                 let (env, func) = closure.call(args)?;
-                self.call_stack.push(Frame {
+
+                let frame = Frame {
                     env,
                     func,
                     data: vec![],
                     pc: 0,
-                });
+                };
+
+                use opcode::Op;
+
+                if let Some(Op::RET) = self.frame().fetch() {
+                    *self.frame() = frame;
+                } else {
+                    self.call_stack.push(frame);
+                }
             },
         }
 
