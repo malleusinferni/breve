@@ -561,6 +561,10 @@ impl<'a> Eval<'a> {
                 self.push(value);
             },
 
+            Op::DROP => {
+                self.frame().data.pop();
+            },
+
             Op::QUOTE(val) => {
                 self.push(val);
             },

@@ -14,6 +14,7 @@ pub enum Op {
     STORE1,
     APPLY(usize),
     RET,
+    DROP,
     QUOTE(Val),
     JUMP(Label),
     JNZ(Label),
@@ -234,6 +235,19 @@ impl<'a> Compiler<'a> {
                 self.set_label(before)?;
                 self.tr_expr(then_do)?;
                 self.set_label(after)?;
+            },
+
+            "do" => {
+                guard(args.len() > 0, || Error::TooFewArgs)?;
+
+                args.reverse();
+                while let Some(arg) = args.pop() {
+                    self.tr_expr(arg)?;
+
+                    if args.len() > 0 {
+                        self.emit(Op::DROP);
+                    }
+                }
             },
 
             "syn" => {
