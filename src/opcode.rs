@@ -19,6 +19,7 @@ pub enum Op {
     JUMP(Label),
     JNZ(Label),
     LAMBDA(Lambda),
+    DISAS,
 }
 
 #[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
@@ -31,6 +32,8 @@ pub struct Func {
 
 mod func {
     use super::*;
+
+    use std::slice::Iter;
 
     pub struct Inner {
         code: Arc<[Op]>,
@@ -54,6 +57,10 @@ mod func {
 
         pub fn jump(&self, label: Label) -> Option<usize> {
             self.inner.labels.get(&label).cloned()
+        }
+
+        pub fn iter(&self) -> Iter<Op> {
+            self.inner.code.iter()
         }
     }
 }
@@ -86,13 +93,17 @@ impl Closure {
         let mut argv = argv.into_iter();
         for &name in args {
             let val = argv.next().ok_or(Error::TooFewArgs)?;
-            env.insert1(name, val)?;
+            env.insert1(name, val).expect("Thing");
         }
 
         let _rest: Val = argv.collect();
         // TODO: Use rest
 
         Ok((env, body.clone()))
+    }
+
+    pub fn as_func(&self) -> &Func {
+        &self.body
     }
 }
 
@@ -272,6 +283,12 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::APPLY(argc));
             },
 
+            "disas" => {
+                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
+                self.emit(Op::QUOTE(Val::Symbol(name)));
+                self.emit(Op::DISAS);
+            },
+
             _ => if self.is_macro(name) {
                 let thing = self.interpreter.expand(name, args)?;
                 self.tr_expr(thing)?;
@@ -297,7 +314,10 @@ impl<'a> Compiler<'a> {
         for arg in argv {
             let name: Symbol = arg?.expect()?;
             if args.contains(&name) {
-                return Err(Error::ArgRedefined);
+                self.interpreter.name_table().resolve(name).and_then(|name| {
+                    let name = name.to_owned();
+                    Err(Error::ArgRedefined { name })
+                })?;
             }
             args.insert(name);
         }
@@ -315,5 +335,11 @@ fn guard<F: FnOnce() -> Error>(test: bool, fail: F) -> Result<()> {
         Ok(())
     } else {
         Err(fail())
+    }
+}
+
+impl From<Label> for usize {
+    fn from(Label(u): Label) -> Self {
+        u
     }
 }

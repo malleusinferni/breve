@@ -24,17 +24,27 @@ pub enum Error {
         found: &'static str,
     },
     NotAList,
-    NoSuchSymbol,
-    StackUnderflow,
+    NoSuchSymbol {
+        symbol: Symbol,
+    },
+    CallStackUnderflow,
+    ExprStackUnderflow,
     UnmatchedRightParen,
     FailedToParseList,
     UnexpectedEof,
-    NameNotFound,
+    NameNotFound {
+        name: String,
+    },
     NoSuchLabel,
     TooFewArgs,
     TooManyArgs,
     LabelRedefined,
-    ArgRedefined,
+    ArgRedefined {
+        name: String,
+    },
+    LocalRedefined {
+        name: String,
+    },
     IllegalToken,
     MacroCall,
     UnimplementedForm { form: String },
@@ -245,7 +255,29 @@ impl NameTable {
         if let Some((name, _)) = self.0.get_index(sym.0) {
             Ok(name)
         } else {
-            Err(Error::NoSuchSymbol)
+            Err(Error::NoSuchSymbol { symbol: sym })
+        }
+    }
+
+    pub fn not_found(&self, symbol: Symbol) -> Error {
+        match self.resolve(symbol) {
+            Ok(name) => {
+                let name = name.to_owned();
+                Error::NameNotFound { name }
+            },
+
+            Err(err) => err,
+        }
+    }
+
+    pub fn redefined(&self, symbol: Symbol) -> Error {
+        match self.resolve(symbol) {
+            Ok(name) => {
+                let name = name.to_owned();
+                Error::LocalRedefined { name }
+            },
+
+            Err(err) => err,
         }
     }
 }
@@ -383,7 +415,8 @@ impl Interpreter {
         let sym = self.names.intern(name);
         let func = FnRef::Native(Arc::new(body));
         let kind = FnKind::Function;
-        self.root.insert2(sym, (kind, func))?;
+        let _redef = self.root.insert2(sym, (kind, func));
+
         Ok(())
     }
 
@@ -409,7 +442,7 @@ impl Interpreter {
 
     pub fn expand(&mut self, name: Symbol, args: Vec<Val>) -> Result<Val> {
         let (kind, func) = self.root.lookup2(name)
-            .ok_or(Error::NameNotFound)?;
+            .ok_or_else(|| self.names.not_found(name))?;
 
         if let FnKind::Function = kind {
             return Err(Error::MacroCall);
@@ -448,15 +481,21 @@ impl Interpreter {
     }
 
     pub fn show(&self, val: Val) -> Result<String> {
+        val.show(&self.names)
+    }
+}
+
+impl Val {
+    pub fn show(&self, names: &NameTable) -> Result<String> {
         let mut buf = String::new();
 
         {
             let mut f = Fmt {
                 buf: &mut buf,
-                names: &self.names,
+                names,
             };
 
-            f.write(&val)?;
+            f.write(self)?;
         }
 
         Ok(buf)
@@ -493,7 +532,7 @@ impl<'a> Eval<'a> {
     }
 
     fn pop<T: Valuable>(&mut self) -> Result<T> {
-        self.frame().data.pop().ok_or(Error::StackUnderflow)?.expect()
+        self.frame().data.pop().ok_or(Error::ExprStackUnderflow)?.expect()
     }
 
     fn step(&mut self, op: opcode::Op) -> Result<()> {
@@ -503,7 +542,11 @@ impl<'a> Eval<'a> {
             Op::LET => {
                 let val = self.pop()?;
                 let name: Symbol = self.pop()?;
-                self.frame().env.insert1(name, val)?;
+
+                self.frame().env.insert1(name, val).map_err(|_| {
+                    self._names.redefined(name)
+                })?;
+
                 self.push(Val::Symbol(name));
             },
 
@@ -511,7 +554,7 @@ impl<'a> Eval<'a> {
                 let body: FnRef = self.pop()?;
                 let name: Symbol = self.pop()?;
                 let kind = FnKind::Function;
-                self.root.env.insert2(name, (kind, body))?;
+                let _redef = self.root.env.insert2(name, (kind, body));
                 self.push(Val::Symbol(name));
             },
 
@@ -519,21 +562,21 @@ impl<'a> Eval<'a> {
                 let body: FnRef = self.pop()?;
                 let name: Symbol = self.pop()?;
                 let kind = FnKind::Macro;
-                self.root.env.insert2(name, (kind, body))?;
+                let _redef = self.root.env.insert2(name, (kind, body));
                 self.push(Val::Symbol(name));
             },
 
             Op::LOAD1 => {
                 let name: Symbol = self.pop()?;
                 let val = self.frame().env.lookup1(name)
-                    .ok_or(Error::NameNotFound)?;
+                    .ok_or_else(|| self._names.not_found(name))?;
                 self.push(val);
             },
 
             Op::LOAD2 => {
                 let name: Symbol = self.pop()?;
                 let (kind, func) = self.frame().env.lookup2(name)
-                    .ok_or(Error::NameNotFound)?;
+                    .ok_or_else(|| self._names.not_found(name))?;
 
                 if let FnKind::Function = kind {
                     self.push(Val::FnRef(func));
@@ -545,7 +588,9 @@ impl<'a> Eval<'a> {
             Op::STORE1 => {
                 let name: Symbol = self.pop()?;
                 let val: Val = self.pop()?;
-                self.frame().env.update1(name, val)?;
+                self.frame().env.update1(name, val).map_err(|_| {
+                    self._names.not_found(name)
+                })?;
             },
 
             Op::APPLY(argc) => {
@@ -557,7 +602,7 @@ impl<'a> Eval<'a> {
             Op::RET => {
                 let value: Val = self.pop()?;
                 let _ = self.call_stack.pop()
-                    .ok_or(Error::StackUnderflow)?;
+                    .ok_or(Error::CallStackUnderflow)?;
                 self.push(value);
             },
 
@@ -589,6 +634,18 @@ impl<'a> Eval<'a> {
                 let closure = lambda.eval(&self.frame().env);
                 self.push(Val::FnRef(FnRef::Closure(closure.into())));
             },
+
+            Op::DISAS => {
+                let name: Symbol = self.pop()?;
+
+                if let Some((_, func)) = self.frame().env.lookup2(name) {
+                    if let FnRef::Closure(func) = func {
+                        self.disas(func.as_func())?;
+                    }
+                } else {
+                    println!("Native function");
+                }
+            },
         }
 
         Ok(())
@@ -596,7 +653,7 @@ impl<'a> Eval<'a> {
 
     fn collect(&mut self, len: usize) -> Result<Vec<Val>> {
         let start = self.frame().data.len().checked_sub(len)
-            .ok_or(Error::StackUnderflow)?;
+            .ok_or(Error::ExprStackUnderflow)?;
         Ok(self.frame().data.drain(start ..).collect())
     }
 
@@ -626,6 +683,41 @@ impl<'a> Eval<'a> {
                     self.call_stack.push(frame);
                 }
             },
+        }
+
+        Ok(())
+    }
+
+    fn disas(&self, func: &opcode::Func) -> Result<()> {
+        use opcode::Op;
+
+        for (pc, op) in func.iter().enumerate() {
+            print!("{:04X}\t", pc);
+
+            match *op {
+                Op::LET => println!("LET"),
+                Op::DEF => println!("DEF"),
+                Op::SYN => println!("SYN"),
+                Op::LOAD1 => println!("LOAD1"),
+                Op::LOAD2 => println!("LOAD2"),
+                Op::STORE1 => println!("STORE1"),
+
+                Op::APPLY(argc) => println!("APPLY {}", argc),
+
+                Op::RET => println!("RET"),
+                Op::DROP => println!("DROP"),
+
+                Op::QUOTE(ref val) => {
+                    println!("QUOTE {}", val.show(&self._names)?)
+                },
+
+                Op::JUMP(pc) => println!("JUMP {}", usize::from(pc)),
+                Op::JNZ(pc) => println!("JNZ {}", usize::from(pc)),
+
+                Op::LAMBDA(_) => println!("LAMBDA ..."),
+
+                Op::DISAS => println!("DISAS"),
+            }
         }
 
         Ok(())

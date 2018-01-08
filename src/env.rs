@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use super::*;
+use super::{Arc, Symbol, Val, FnRef};
 
 #[derive(Clone)]
 pub struct Env(Arc<RefCell<Inner>>);
@@ -11,6 +11,11 @@ pub enum FnKind {
     Function,
     Macro,
 }
+
+pub type Result<T, E=NameErr> = ::std::result::Result<T, E>;
+
+#[derive(Debug)]
+pub struct NameErr;
 
 struct Inner {
     names1: BTreeMap<Symbol, Val>,
@@ -48,17 +53,16 @@ impl Env {
     pub fn insert1(&self, sym: Symbol, val: Val) -> Result<()> {
         let mut env = self.0.borrow_mut();
         if env.names1.contains_key(&sym) {
-            Err(Error::NameNotFound)
+            Err(NameErr)
         } else {
             env.names1.insert(sym, val);
             Ok(())
         }
     }
 
-    pub fn insert2(&self, sym: Symbol, func: (FnKind, FnRef)) -> Result<()> {
+    pub fn insert2(&self, sym: Symbol, func: (FnKind, FnRef)) -> bool {
         let mut env = self.0.borrow_mut();
-        env.names2.insert(sym, func);
-        Ok(())
+        env.names2.insert(sym, func).is_some()
     }
 
     pub fn update1(&self, sym: Symbol, val: Val) -> Result<()> {
@@ -69,7 +73,7 @@ impl Env {
         } else if let Some(parent) = env.parent.clone() {
             parent.update1(sym, val)
         } else {
-            Err(Error::NameNotFound)
+            Err(NameErr)
         }
     }
 }
