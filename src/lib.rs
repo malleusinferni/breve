@@ -1,5 +1,9 @@
 extern crate ordermap;
 
+#[macro_use]
+extern crate failure_derive;
+extern crate failure;
+
 use std::sync::Arc;
 
 use std::iter::FromIterator;
@@ -17,36 +21,71 @@ pub use env::*;
 #[derive(Clone, Debug, Default)]
 pub struct NameTable(OrderMap<String, Symbol>);
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub enum Error {
+    #[fail(display="expected {}, found {}", wanted, found)]
     WrongType {
         wanted: &'static str,
         found: &'static str,
     },
+
+    #[fail(display="expression is not a list")]
     NotAList,
+
+    #[fail(display="no such symbol {:?}", symbol)]
     NoSuchSymbol {
         symbol: Symbol,
     },
+
+    #[fail(display="stack underflow in call stack")]
     CallStackUnderflow,
+
+    #[fail(display="stack underflow in local expression")]
     ExprStackUnderflow,
+
+    #[fail(display="unmatched closing parenthesis")]
     UnmatchedRightParen,
+
+    #[fail(display="failed to parse list")]
     FailedToParseList,
+
+    #[fail(display="unexpected end of input")]
     UnexpectedEof,
+
+    #[fail(display="name not found: {}", name)]
     NameNotFound {
         name: String,
     },
+
+    #[fail(display="no such label")]
     NoSuchLabel,
+
+    #[fail(display="too few arguments for function call")]
     TooFewArgs,
+
+    #[fail(display="too many arguments in function call")]
     TooManyArgs,
+
+    #[fail(display="internal error: label redefined")]
     LabelRedefined,
+
+    #[fail(display="argument {} redefined", name)]
     ArgRedefined {
         name: String,
     },
+
+    #[fail(display="local variable {} redefined", name)]
     LocalRedefined {
         name: String,
     },
+
+    #[fail(display="encountered an illegal token")]
     IllegalToken,
+
+    #[fail(display="illegal macro invocation")]
     MacroCall,
+
+    #[fail(display="unimplemented form {}", form)]
     UnimplementedForm { form: String },
 }
 

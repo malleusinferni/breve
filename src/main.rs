@@ -13,7 +13,7 @@ fn main() {
         }
 
         eval_print(&mut it, &line).unwrap_or_else(|err| {
-            println!("Error: {:?}", err);
+            println!("Error: {}", err);
         });
     }
 }
