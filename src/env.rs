@@ -90,6 +90,8 @@ impl Default for Env {
 
 #[test]
 fn closure() {
+    use NameTable;
+
     let mut names = NameTable::default();
     let t = names.intern("t");
     let u = names.intern("u");
