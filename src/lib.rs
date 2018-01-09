@@ -328,6 +328,15 @@ impl Frame {
             op
         })
     }
+
+    fn will_return(&self) -> bool {
+        use opcode::Op;
+
+        match self.func.fetch(self.pc) {
+            Some(Op::RET) => true,
+            _ => false,
+        }
+    }
 }
 
 impl ArgIter {
@@ -715,9 +724,7 @@ impl<'a> Eval<'a> {
                     pc: 0,
                 };
 
-                use opcode::Op;
-
-                if let Some(Op::RET) = self.frame().fetch() {
+                if self.frame().will_return() {
                     *self.frame() = frame;
                 } else {
                     self.call_stack.push(frame);

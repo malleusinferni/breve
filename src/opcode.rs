@@ -107,6 +107,27 @@ impl Closure {
     }
 }
 
+impl Op {
+    pub fn stack_effect(&self) -> (usize, usize) {
+        match *self {
+            Op::LET => (2, 1),
+            Op::DEF => (2, 1),
+            Op::SYN => (2, 1),
+            Op::LOAD1 => (2, 1),
+            Op::LOAD2 => (2, 1),
+            Op::STORE1 => (2, 0),
+            Op::APPLY(argc) => (argc + 1, 1),
+            Op::RET => (1, 0),
+            Op::DROP => (1, 0),
+            Op::QUOTE(_) => (0, 1),
+            Op::JUMP(_) => (0, 0),
+            Op::JNZ(_) => (1, 0),
+            Op::LAMBDA(_) => (0, 1),
+            Op::DISAS => (1, 0),
+        }
+    }
+}
+
 impl Interpreter {
     pub fn compile(&mut self, input: Vec<Val>) -> Result<Func> {
         let mut compiler = Compiler::new(self);
