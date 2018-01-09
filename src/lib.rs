@@ -410,6 +410,16 @@ impl Interpreter {
             Ok(Val::Int(sum))
         })?;
 
+        it.def("*", |mut argv| {
+            let mut prod: i32 = argv.next()?.expect()?;
+
+            while argv.has_next() {
+                prod *= argv.next()?.expect::<i32>()?;
+            }
+
+            Ok(Val::Int(prod))
+        })?;
+
         let t = it.names.intern("t");
 
         it.def("=", move |mut argv| {
@@ -452,6 +462,15 @@ impl Interpreter {
             }
 
             Ok(Val::Symbol(t))
+        })?;
+
+        let stdlib = include_str!("stdlib.breve");
+        it.parse(&stdlib).and_then(|forms| {
+            for form in forms {
+                it.eval(form)?;
+            }
+
+            Ok(())
         })?;
 
         Ok(it)

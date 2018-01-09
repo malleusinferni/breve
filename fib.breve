@@ -6,17 +6,13 @@
         a)))
   (call iter n 1 0))
 
-(def map (f xs)
-  (if xs
-    (cons (call f (car xs)) (map f (cdr xs)))
-    xs))
-
-(def iota (n)
+(def fac (n)
   (let iter
-    (fn (i)
-      (if (> i n)
-        '()
-        (cons i (call iter (+ i 1))))))
-  (call iter 1))
+    (fn (i o)
+      (if (> i 0)
+        (call iter (- i 1) (* i o))
+        o)))
+  (call iter n 1))
 
 (map #fib (iota 10))
+(map #fac (iota 10))

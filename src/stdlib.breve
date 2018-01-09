@@ -1,0 +1,29 @@
+(def nil? (xs)
+  (if xs '() 't))
+
+(def len (list)
+  (let iter (fn (n xs) (if xs (call iter (+ 1 n) (cdr xs)) n)))
+  (call iter 0 list))
+
+(def not (xs)
+  (if xs 't '()))
+
+(def map (f xs)
+  (if xs
+    (cons (call f (car xs)) (map f (cdr xs)))
+    xs))
+
+(def iota (n)
+  (let iter
+    (fn (i)
+      (if (> i n)
+        '()
+        (cons i (call iter (+ i 1))))))
+  (call iter 1))
+
+(def append (lhs rhs)
+  (if lhs
+    (cons (car lhs) (append (cdr lhs) rhs))
+    rhs))
+
+(append (iota 7) (map (fn (n) (+ 7 n)) (iota 7)))
