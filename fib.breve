@@ -1,0 +1,22 @@
+(def fib (n)
+  (let iter
+    (fn (i a b)
+      (if (> i 1)
+        (call iter (- i 1) (+ a b) a)
+        a)))
+  (call iter n 1 0))
+
+(def map (f xs)
+  (if xs
+    (cons (call f (car xs)) (map f (cdr xs)))
+    xs))
+
+(def iota (n)
+  (let iter
+    (fn (i)
+      (if (> i n)
+        '()
+        (cons i (call iter (+ i 1))))))
+  (call iter 1))
+
+(map #fib (iota 10))
