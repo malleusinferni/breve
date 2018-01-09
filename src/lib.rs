@@ -639,7 +639,7 @@ impl<'a> Eval<'a> {
             },
 
             Op::RET => {
-                let value: Val = self.pop()?;
+                let value: Val = self.pop().unwrap_or(Val::Nil);
                 let _ = self.call_stack.pop()
                     .ok_or(Error::CallStackUnderflow)?;
                 self.push(value);
