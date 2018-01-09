@@ -39,6 +39,8 @@ impl<'a> Stream<'a> {
         match self.input.next().ok_or(Error::UnexpectedEof)? {
             '(' => self.list_tail(),
 
+            '&' => Err(Error::NotAList),
+
             ')' => Err(Error::UnmatchedRightParen),
 
             '\'' => self.quoted("quote"),
@@ -89,6 +91,17 @@ impl<'a> Stream<'a> {
         self.skip_whitespace()?;
 
         match self.lookahead().ok_or(Error::UnexpectedEof)? {
+            '&' => {
+                self.input.next();
+                self.skip_whitespace()?;
+                let cdr = self.next_value()?;
+                self.skip_whitespace()?;
+                match self.input.next().ok_or(Error::UnexpectedEof)? {
+                    ')' => Ok(cdr),
+                    _ => Err(Error::NotAList),
+                }
+            },
+
             ')' => {
                 self.input.next();
                 Ok(Val::Nil)

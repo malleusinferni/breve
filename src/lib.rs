@@ -780,49 +780,52 @@ struct Fmt<'a> {
 
 impl<'a> Fmt<'a> {
     fn write(&mut self, val: &Val) -> Result<()> {
-        if val.is_list() {
-            self.buf.push('(');
+        match *val {
+            Val::Symbol(sym) => {
+                let name = self.names.resolve(sym)?;
+                self.buf.push_str(name);
+            },
 
-            let mut first = true;
+            Val::Int(int) => {
+                self.buf.push_str(&format!("{}", int));
+            },
 
-            for item in val.clone() {
-                let item = item?;
+            Val::Nil => self.buf.push_str("()"),
 
-                if first {
-                    first = false;
-                } else {
-                    self.buf.push(' ');
-                }
+            Val::Cons(ref pair) => {
+                let mut pair: &(Val, Val) = pair.as_ref();
+                let mut first = true;
+                self.buf.push('(');
 
-                self.write(&item)?;
-            }
+                loop {
+                    let (ref car, ref cdr) = *pair;
 
-            self.buf.push(')');
-        } else {
-            match *val {
-                Val::Symbol(sym) => {
-                    let name = self.names.resolve(sym)?;
-                    self.buf.push_str(name);
-                },
+                    if first {
+                        first = false;
+                    } else {
+                        self.buf.push(' ');
+                    }
 
-                Val::Int(int) => {
-                    self.buf.push_str(&format!("{}", int));
-                },
-
-                Val::Nil => self.buf.push_str("nil"),
-
-                Val::Cons(ref pair) => {
-                    let (ref car, ref cdr) = *pair.as_ref();
-                    self.buf.push('(');
                     self.write(car)?;
-                    self.buf.push_str(" . ");
-                    self.write(cdr)?;
-                    self.buf.push(')');
-                },
 
-                Val::FnRef(_) => {
-                    self.buf.push_str("#'function");
+                    pair = match cdr {
+                        &Val::Cons(ref pair) => pair,
+
+                        &Val::Nil => break,
+
+                        other => {
+                            self.buf.push_str(" & ");
+                            self.write(other)?;
+                            break;
+                        },
+                    }
                 }
+
+                self.buf.push(')');
+            },
+
+            Val::FnRef(_) => {
+                self.buf.push_str("#'function");
             }
         }
 
