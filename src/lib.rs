@@ -677,10 +677,11 @@ impl<'a> Eval<'a> {
             Op::DISAS => {
                 let name: Symbol = self.pop()?;
 
-                if let Some((_, func)) = self.frame().env.lookup2(name) {
-                    if let FnRef::Closure(func) = func {
-                        self.disas(func.as_func())?;
-                    }
+                let (_, func) = self.frame().env.lookup2(name)
+                    .ok_or_else(|| self._names.not_found(name))?;
+
+                if let FnRef::Closure(closure) = func {
+                    self.disas(closure.as_func())?;
                 } else {
                     println!("Native function");
                 }
