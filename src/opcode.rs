@@ -226,6 +226,13 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::QUOTE(arg));
             },
 
+            "fnquote" => {
+                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
+                guard(args.is_empty(), || Error::TooManyArgs)?;
+                self.emit(Op::QUOTE(Val::Symbol(name)));
+                self.emit(Op::LOAD2);
+            },
+
             "let" => {
                 let value = args.pop().ok_or(Error::TooFewArgs)?;
                 let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;

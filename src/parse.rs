@@ -43,6 +43,8 @@ impl<'a> Stream<'a> {
 
             '\'' => self.quoted("quote"),
 
+            '#' => self.quoted("fnquote"),
+
             '`' => self.quoted("quasi"),
 
             ',' => if self.lookahead() == Some('@') {
@@ -57,7 +59,7 @@ impl<'a> Stream<'a> {
                 name.push(w);
 
                 while let Some(w) = self.lookahead() {
-                    if "(',`);".contains(w) || w.is_whitespace() {
+                    if "(#',`);".contains(w) || w.is_whitespace() {
                         break;
                     } else {
                         name.push(w);
