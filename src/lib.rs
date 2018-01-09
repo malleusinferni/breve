@@ -731,6 +731,8 @@ impl<'a> Eval<'a> {
     fn disas(&self, func: &opcode::Func) -> Result<()> {
         use opcode::Op;
 
+        let label = |pc| func.jump(pc).ok_or(Error::NoSuchLabel);
+
         for (pc, op) in func.iter().enumerate() {
             print!("{:04X}\t", pc);
 
@@ -751,8 +753,8 @@ impl<'a> Eval<'a> {
                     println!("QUOTE {}", val.show(&self._names)?)
                 },
 
-                Op::JUMP(pc) => println!("JUMP {}", usize::from(pc)),
-                Op::JNZ(pc) => println!("JNZ {}", usize::from(pc)),
+                Op::JUMP(pc) => println!("JUMP {:04X}", label(pc)?),
+                Op::JNZ(pc) => println!("JNZ {:04X}", label(pc)?),
 
                 Op::LAMBDA(_) => println!("LAMBDA ..."),
 
