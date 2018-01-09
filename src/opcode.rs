@@ -67,14 +67,20 @@ mod func {
 
 #[derive(Clone)]
 pub struct Lambda {
-    args: OrderSet<Symbol>,
+    args: ArgList,
     body: Func,
 }
 
 pub struct Closure {
     env: Env,
-    args: OrderSet<Symbol>,
+    args: ArgList,
     body: Func,
+}
+
+#[derive(Clone)]
+struct ArgList {
+    body: OrderSet<Symbol>,
+    foot: Option<Symbol>,
 }
 
 impl Lambda {
@@ -89,21 +95,69 @@ impl Closure {
     pub fn call(&self, argv: Vec<Val>) -> Result<(Env, Func)> {
         let Closure { ref env, ref args, ref body } = *self;
         let env = env.child();
-
-        let mut argv = argv.into_iter();
-        for &name in args {
-            let val = argv.next().ok_or(Error::TooFewArgs)?;
-            env.insert1(name, val).expect("Thing");
-        }
-
-        let _rest: Val = argv.collect();
-        // TODO: Use rest
-
+        args.collect(&env, argv)?;
         Ok((env, body.clone()))
     }
 
     pub fn as_func(&self) -> &Func {
         &self.body
+    }
+}
+
+impl ArgList {
+    fn parse(mut list: Val, names: &NameTable) -> Result<Self> {
+        let mut body = OrderSet::new();
+        let mut foot = None;
+
+        loop {
+            match list {
+                Val::Symbol(name) => {
+                    foot = Some(name);
+                    break;
+                },
+
+                Val::Cons(pair) => {
+                    let (car, cdr) = pair.as_ref().clone();
+                    let name: Symbol = car.expect()?;
+
+                    if body.contains(&name) {
+                        names.resolve(name).and_then(|name| {
+                            let name = name.to_owned();
+                            Err(Error::ArgRedefined { name })
+                        })?;
+                    }
+
+                    body.insert(name);
+                    list = cdr;
+                },
+
+                Val::Nil => break,
+
+                _ => return Err(Error::FailedToParseList),
+            }
+        }
+
+        Ok(ArgList { body, foot })
+    }
+
+    fn collect(&self, env: &Env, argv: Vec<Val>) -> Result<()> {
+        let mut argv = argv.into_iter();
+        for &name in self.body.iter() {
+            let val = argv.next().ok_or(Error::TooFewArgs)?;
+            env.insert1(name, val).expect("Failed to define argument");
+        }
+
+        let rest: Val = argv.collect();
+
+        if self.foot.is_none() && !rest.is_nil() {
+            Err(Error::TooManyArgs)
+        } else {
+            if let Some(name) = self.foot.clone() {
+                env.insert1(name, rest).expect("Unreachable");
+            }
+
+            Ok(())
+        }
     }
 }
 
@@ -338,20 +392,8 @@ impl<'a> Compiler<'a> {
     }
 
     fn tr_lambda(&mut self, argv: Val, body: Vec<Val>) -> Result<()> {
-        let mut args = OrderSet::new();
-        for arg in argv {
-            let name: Symbol = arg?.expect()?;
-            if args.contains(&name) {
-                self.interpreter.name_table().resolve(name).and_then(|name| {
-                    let name = name.to_owned();
-                    Err(Error::ArgRedefined { name })
-                })?;
-            }
-            args.insert(name);
-        }
-
+        let args = ArgList::parse(argv, &self.interpreter.name_table())?;
         let body = self.interpreter.compile(body)?;
-
         self.emit(Op::LAMBDA(Lambda { args, body }));
 
         Ok(())
