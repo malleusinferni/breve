@@ -101,7 +101,7 @@ pub enum Val {
 #[derive(Clone)]
 pub enum FnRef {
     Closure(Arc<opcode::Closure>),
-    Native(Arc<Fn(ArgIter) -> Result<Val>>),
+    Native(Arc<Fn(ListIter) -> Result<Val>>),
 }
 
 impl PartialEq for FnRef {
@@ -158,8 +158,34 @@ impl Val {
         self == &Val::Nil
     }
 
+    pub fn as_list(mut self) -> Result<ListIter> {
+        let mut stack = vec![];
+
+        loop {
+            if self.is_nil() {
+                stack.reverse();
+                return Ok(ListIter(stack));
+            }
+
+            let (car, cdr) = self.uncons()?;
+            stack.push(car);
+            self = cdr;
+        }
+    }
+
     fn expect<T: Valuable>(self) -> Result<T> {
         T::from_value(self)
+    }
+
+    pub fn uncons(self) -> Result<(Self, Self)> {
+        match self {
+            Val::Cons(pair) => Ok(pair.as_ref().clone()),
+
+            other => Err(Error::WrongType {
+                wanted: "cons",
+                found: other.type_name(),
+            }),
+        }
     }
 
     pub fn type_name(&self) -> &'static str {
@@ -236,15 +262,6 @@ impl Valuable for FnRef {
     }
 }
 
-impl IntoIterator for Val {
-    type Item = Result<Val>;
-    type IntoIter = ListIter;
-
-    fn into_iter(self) -> ListIter {
-        ListIter(self)
-    }
-}
-
 impl FromIterator<Val> for Val {
     fn from_iter<T: IntoIterator<Item=Val>>(iter: T) -> Self {
         let mut items: Vec<Val> = iter.into_iter().collect();
@@ -258,25 +275,35 @@ impl FromIterator<Val> for Val {
     }
 }
 
-pub struct ListIter(Val);
-
-pub struct ArgIter(Vec<Val>);
+pub struct ListIter(Vec<Val>);
 
 impl Iterator for ListIter {
-    type Item = Result<Val>;
+    type Item = Val;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.0.clone() {
-            Val::Cons(pair) => {
-                let (car, cdr) = pair.as_ref().clone();
-                self.0 = cdr;
-                Some(Ok(car))
-            },
+        self.0.pop()
+    }
+}
 
-            Val::Nil => None,
+impl ListIter {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 
-            _ => Some(Err(Error::NotAList)),
+    fn expect<T: Valuable>(&mut self) -> Result<T> {
+        self.next().ok_or(Error::TooFewArgs)?.expect()
+    }
+
+    pub fn end(self) -> Result<()> {
+        if self.0.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::TooManyArgs)
         }
+    }
+
+    pub fn has_next(&self) -> bool {
+        self.0.len() > 0
     }
 }
 
@@ -339,24 +366,6 @@ impl Frame {
     }
 }
 
-impl ArgIter {
-    pub fn next(&mut self) -> Result<Val> {
-        self.0.pop().ok_or(Error::TooFewArgs)
-    }
-
-    pub fn has_next(&self) -> bool {
-        self.0.len() > 0
-    }
-
-    pub fn end(self) -> Result<()> {
-        if self.has_next() {
-            Err(Error::TooManyArgs)
-        } else {
-            Ok(())
-        }
-    }
-}
-
 impl Interpreter {
     pub fn new() -> Result<Self> {
         let mut it = Interpreter {
@@ -365,20 +374,20 @@ impl Interpreter {
         };
 
         it.def("cons", |mut argv| {
-            let car = argv.next()?;
-            let cdr = argv.next()?;
+            let car = argv.expect()?;
+            let cdr = argv.expect()?;
             argv.end()?;
             Ok(Val::Cons((car, cdr).into()))
         })?;
 
         it.def("car", |mut argv| {
-            let (car, _) = argv.next()?.expect()?;
+            let (car, _) = argv.expect()?;
             argv.end()?;
             Ok(car)
         })?;
 
         it.def("cdr", |mut argv| {
-            let (_, cdr) = argv.next()?.expect()?;
+            let (_, cdr) = argv.expect()?;
             argv.end()?;
             Ok(cdr)
         })?;
@@ -389,19 +398,19 @@ impl Interpreter {
         })?;
 
         it.def("+", |mut argv| {
-            let mut sum: i32 = argv.next()?.expect()?;
+            let mut sum: i32 = argv.expect()?;
             while argv.has_next() {
-                sum += argv.next()?.expect::<i32>()?;
+                sum += argv.expect::<i32>()?;
             }
             Ok(Val::Int(sum))
         })?;
 
         it.def("-", |mut argv| {
-            let mut sum: i32 = argv.next()?.expect()?;
+            let mut sum: i32 = argv.expect()?;
 
             if argv.has_next() {
                 while argv.has_next() {
-                    sum -= argv.next()?.expect::<i32>()?;
+                    sum -= argv.expect::<i32>()?;
                 }
             } else {
                 sum = -sum;
@@ -411,10 +420,10 @@ impl Interpreter {
         })?;
 
         it.def("*", |mut argv| {
-            let mut prod: i32 = argv.next()?.expect()?;
+            let mut prod: i32 = argv.expect()?;
 
             while argv.has_next() {
-                prod *= argv.next()?.expect::<i32>()?;
+                prod *= argv.expect::<i32>()?;
             }
 
             Ok(Val::Int(prod))
@@ -423,8 +432,8 @@ impl Interpreter {
         let t = it.names.intern("t");
 
         it.def("=", move |mut argv| {
-            let lhs = argv.next()?;
-            let rhs = argv.next()?;
+            let lhs: Val = argv.expect()?;
+            let rhs: Val = argv.expect()?;
             argv.end()?;
 
             if lhs == rhs {
@@ -435,10 +444,10 @@ impl Interpreter {
         })?;
 
         it.def("<", move |mut argv| {
-            let mut lhs: i32 = argv.next()?.expect()?;
+            let mut lhs: i32 = argv.expect()?;
 
-            for rhs in argv.0.drain(..) {
-                let rhs: i32 = rhs.expect()?;
+            while argv.has_next() {
+                let rhs: i32 = argv.expect()?;
                 if lhs < rhs {
                     lhs = rhs;
                 } else {
@@ -450,10 +459,10 @@ impl Interpreter {
         })?;
 
         it.def(">", move |mut argv| {
-            let mut lhs: i32 = argv.next()?.expect()?;
+            let mut lhs: i32 = argv.expect()?;
 
-            for rhs in argv.0.drain(..) {
-                let rhs: i32 = rhs.expect()?;
+            while argv.has_next() {
+                let rhs: i32 = argv.expect()?;
                 if lhs > rhs {
                     lhs = rhs;
                 } else {
@@ -477,7 +486,7 @@ impl Interpreter {
     }
 
     pub fn def<F>(&mut self, name: &str, body: F) -> Result<()>
-        where F: 'static + Fn(ArgIter) -> Result<Val>
+        where F: 'static + Fn(ListIter) -> Result<Val>
     {
         let sym = self.names.intern(name);
         let func = FnRef::Native(Arc::new(body));
@@ -507,7 +516,7 @@ impl Interpreter {
         eval.finish()
     }
 
-    pub fn expand(&mut self, name: Symbol, args: Vec<Val>) -> Result<Val> {
+    pub fn expand(&mut self, name: Symbol, args: ListIter) -> Result<Val> {
         let (kind, func) = self.root.lookup2(name)
             .ok_or_else(|| self.names.not_found(name))?;
 
@@ -536,8 +545,6 @@ impl Interpreter {
             },
 
             FnRef::Native(func) => {
-                let mut args = ArgIter(args);
-                args.0.reverse();
                 func(args)
             },
         }
@@ -719,17 +726,16 @@ impl<'a> Eval<'a> {
         Ok(())
     }
 
-    fn collect(&mut self, len: usize) -> Result<Vec<Val>> {
+    fn collect(&mut self, len: usize) -> Result<ListIter> {
         let start = self.frame().data.len().checked_sub(len)
             .ok_or(Error::ExprStackUnderflow)?;
-        Ok(self.frame().data.drain(start ..).collect())
+        let stack = self.frame().data.drain(start ..).rev().collect();
+        Ok(ListIter(stack))
     }
 
-    fn apply(&mut self, func: FnRef, mut args: Vec<Val>) -> Result<()> {
+    fn apply(&mut self, func: FnRef, args: ListIter) -> Result<()> {
         match func {
             FnRef::Native(native) => {
-                args.reverse();
-                let args = ArgIter(args);
                 self.push(native(args)?);
             },
 

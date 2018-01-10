@@ -92,7 +92,7 @@ impl Lambda {
 }
 
 impl Closure {
-    pub fn call(&self, argv: Vec<Val>) -> Result<(Env, Func)> {
+    pub fn call(&self, argv: ListIter) -> Result<(Env, Func)> {
         let Closure { ref env, ref args, ref body } = *self;
         let env = env.child();
         args.collect(&env, argv)?;
@@ -140,10 +140,9 @@ impl ArgList {
         Ok(ArgList { body, foot })
     }
 
-    fn collect(&self, env: &Env, argv: Vec<Val>) -> Result<()> {
-        let mut argv = argv.into_iter();
+    fn collect(&self, env: &Env, mut argv: ListIter) -> Result<()> {
         for &name in self.body.iter() {
-            let val = argv.next().ok_or(Error::TooFewArgs)?;
+            let val = argv.expect()?;
             env.insert1(name, val).expect("Failed to define argument");
         }
 
@@ -246,12 +245,7 @@ impl<'a> Compiler<'a> {
                 let (car, cdr) = pair.as_ref().clone();
                 match car {
                     Val::Symbol(sym) => {
-                        let mut args = vec![];
-                        for arg in cdr {
-                            args.push(arg?);
-                        }
-
-                        self.tr_form(sym, args)?;
+                        self.tr_form(sym, cdr.as_list()?)?;
                     },
 
                     form => {
@@ -269,55 +263,58 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn tr_form(&mut self, name: Symbol, mut args: Vec<Val>) -> Result<()> {
+    fn tr_form(&mut self, name: Symbol, mut args: ListIter) -> Result<()> {
         let string = self.interpreter.name_table()
             .resolve(name)?.to_owned();
 
         match string.as_str() {
             "quote" => {
-                let arg = args.pop().ok_or(Error::TooFewArgs)?;
-                guard(args.is_empty(), || Error::TooManyArgs)?;
+                let arg = args.expect()?;
+                args.end()?;
+
                 self.emit(Op::QUOTE(arg));
             },
 
             "fnquote" => {
-                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
-                guard(args.is_empty(), || Error::TooManyArgs)?;
+                let name = args.expect()?;
+                args.end()?;
+
                 self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.emit(Op::LOAD2);
             },
 
             "let" => {
-                let value = args.pop().ok_or(Error::TooFewArgs)?;
-                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
-                guard(args.is_empty(), || Error::TooManyArgs)?;
+                let name = args.expect()?;
+                let value = args.expect()?;
+                args.end()?;
+
                 self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.tr_expr(value)?;
                 self.emit(Op::LET);
             },
 
             "def" => {
-                let body = args.drain(2 ..).collect();
-                let argv = args.pop().ok_or(Error::TooFewArgs)?;
-                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
-                guard(args.is_empty(), || Error::TooManyArgs)?;
+                let name = args.expect()?;
+                let argv = args.expect()?;
+                let body = args.collect();
+
                 self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.tr_lambda(argv, body)?;
                 self.emit(Op::DEF);
             },
 
             "fn" => {
-                let body = args.drain(1 ..).collect();
-                let argv = args.pop().ok_or(Error::TooFewArgs)?;
-                guard(args.is_empty(), || Error::TooManyArgs)?;
+                let argv = args.expect()?;
+                let body = args.collect();
+
                 self.tr_lambda(argv, body)?;
             },
 
             "if" => {
-                let or_else = args.pop().ok_or(Error::TooFewArgs)?;
-                let then_do = args.pop().ok_or(Error::TooFewArgs)?;
-                let test = args.pop().ok_or(Error::TooFewArgs)?;
-                guard(args.is_empty(), || Error::TooManyArgs)?;
+                let test = args.expect()?;
+                let then_do = args.expect()?;
+                let or_else = args.expect()?;
+                args.end()?;
 
                 let before = self.make_label();
                 let after = self.make_label();
@@ -332,33 +329,35 @@ impl<'a> Compiler<'a> {
             },
 
             "do" => {
-                guard(args.len() > 0, || Error::TooFewArgs)?;
+                if !args.has_next() {
+                    return Err(Error::TooFewArgs);
+                }
 
-                args.reverse();
-                while let Some(arg) = args.pop() {
+                while let Some(arg) = args.next() {
                     self.tr_expr(arg)?;
 
-                    if args.len() > 0 {
+                    if args.has_next() {
                         self.emit(Op::DROP);
                     }
                 }
             },
 
             "syn" => {
-                let body = args.drain(2 ..).collect();
-                let argv = args.pop().ok_or(Error::TooFewArgs)?;
-                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
-                guard(args.is_empty(), || Error::TooManyArgs)?;
+                let name = args.expect()?;
+                let argv = args.expect()?;
+                let body = args.collect();
+
                 self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.tr_lambda(argv, body)?;
                 self.emit(Op::SYN);
             },
 
             "call" => {
-                let argc = args.len().checked_sub(1)
-                    .ok_or(Error::TooFewArgs)?;
+                self.tr_expr(args.expect()?)?;
 
-                for arg in args.drain(..) {
+                let argc = args.len();
+
+                for arg in args {
                     self.tr_expr(arg)?;
                 }
 
@@ -366,7 +365,7 @@ impl<'a> Compiler<'a> {
             },
 
             "disas" => {
-                let name = args.pop().ok_or(Error::TooFewArgs)?.expect()?;
+                let name = args.expect()?;
                 self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.emit(Op::DISAS);
             },
@@ -397,14 +396,6 @@ impl<'a> Compiler<'a> {
         self.emit(Op::LAMBDA(Lambda { args, body }));
 
         Ok(())
-    }
-}
-
-fn guard<F: FnOnce() -> Error>(test: bool, fail: F) -> Result<()> {
-    if test {
-        Ok(())
-    } else {
-        Err(fail())
     }
 }
 
