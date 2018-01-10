@@ -146,6 +146,23 @@ impl Valuable for FnRef {
     }
 }
 
+macro_rules! decode_tuple {
+    ( $( $param:ident ),* ) => {
+        impl<$( $param: Valuable ),*> Valuable for ( $( $param ),* ) {
+            fn from_value(val: Val) -> Result<Self> {
+                let mut list = val.as_list()?;
+                let result = ( $( list.expect::<$param>()? ),* );
+                list.end()?;
+                Ok(result)
+            }
+        }
+    }
+}
+
+decode_tuple!(A, B, C);
+decode_tuple!(A, B, C, D);
+decode_tuple!(A, B, C, D, E);
+
 impl PartialEq for FnRef {
     fn eq(&self, rhs: &Self) -> bool {
         match (self, rhs) {
