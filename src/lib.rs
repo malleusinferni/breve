@@ -392,11 +392,6 @@ impl Interpreter {
             Ok(cdr)
         })?;
 
-        it.def("list", |mut argv| {
-            argv.0.reverse();
-            Ok(argv.0.into_iter().collect())
-        })?;
-
         it.def("+", |mut argv| {
             let mut sum: i32 = argv.expect()?;
             while argv.has_next() {

@@ -13,6 +13,8 @@
     (cons (call f (car xs)) (map f (cdr xs)))
     xs))
 
+(def list items items)
+
 (def iota (n)
   (let iter
     (fn (i)
