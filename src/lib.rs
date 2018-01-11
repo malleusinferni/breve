@@ -224,6 +224,38 @@ impl Interpreter {
             Ok(Val::Symbol(t))
         })?;
 
+        it.def("list?", move |mut argv| {
+            let expr: Val = argv.expect()?;
+            argv.end()?;
+
+            if expr.is_list() {
+                Ok(Val::Symbol(t))
+            } else {
+                Ok(Val::Nil)
+            }
+        })?;
+
+        {
+            let nil = it.names.intern("nil");
+            let int = it.names.intern("int");
+            let symbol = it.names.intern("symbol");
+            let cons = it.names.intern("cons");
+            let closure = it.names.intern("closure");
+
+            it.def("type", move |mut argv| {
+                let expr = argv.expect()?;
+                argv.end()?;
+
+                Ok(Val::Symbol(match expr {
+                    Val::Nil => nil,
+                    Val::Int(_) => int,
+                    Val::Symbol(_) => symbol,
+                    Val::Cons(_) => cons,
+                    Val::FnRef(_) => closure,
+                }))
+            })?;
+        }
+
         let stdlib = include_str!("stdlib.breve");
         it.parse(&stdlib).and_then(|forms| {
             for form in forms {

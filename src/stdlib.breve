@@ -1,5 +1,14 @@
-(def nil? (xs)
-  (if xs '() 't))
+(def nil? (expr)
+  (= expr '()))
+
+(def cons? (expr)
+  (= (type expr) 'cons))
+
+(def int? (expr)
+  (= (type expr) 'int))
+
+(def symbol? (expr)
+  (= (type expr) 'symbol))
 
 (def len (list)
   (let iter (fn (n xs) (if xs (call iter (+ 1 n) (cdr xs)) n)))
@@ -14,6 +23,16 @@
     xs))
 
 (def list items items)
+
+(def nth (i xs)
+  (if (> i 0)
+    (nth (- i 1) (cdr xs))
+    (car xs)))
+
+(syn when (test & body)
+  (list 'if test
+    (cons 'do body)
+    (list)))
 
 (def iota (n)
   (let iter
