@@ -293,6 +293,16 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::LET);
             },
 
+            "mut!" => {
+                let name = args.expect()?;
+                let value = args.expect()?;
+                args.end()?;
+
+                self.emit(Op::QUOTE(Val::Symbol(name)));
+                self.tr_expr(value)?;
+                self.emit(Op::STORE1);
+            },
+
             "def" => {
                 let name = args.expect()?;
                 let argv = args.expect()?;

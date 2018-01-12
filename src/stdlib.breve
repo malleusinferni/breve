@@ -10,6 +10,12 @@
 (def symbol? (expr)
   (= (type expr) 'symbol))
 
+(syn push! (name expr)
+  (list 'mut! name (list 'cons expr name)))
+
+(syn pop! (name)
+  (list 'car (list 'mut! name (list 'cdr name))))
+
 (def len (list)
   (let iter (fn (n xs) (if xs (call iter (+ 1 n) (cdr xs)) n)))
   (call iter 0 list))
@@ -28,6 +34,11 @@
   (if (> i 0)
     (nth (- i 1) (cdr xs))
     (car xs)))
+
+(syn with (head & body)
+  (let names (pop! head))
+  (let expr (pop! head))
+  (list 'call (cons 'fn (cons names body)) expr))
 
 (syn when (test & body)
   (list 'if test

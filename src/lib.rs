@@ -443,11 +443,12 @@ impl<'a> Eval<'a> {
             },
 
             Op::STORE1 => {
-                let name: Symbol = self.pop()?;
                 let val: Val = self.pop()?;
-                self.frame().env.update1(name, val).map_err(|_| {
-                    self._names.not_found(name)
-                })?;
+                let name: Symbol = self.pop()?;
+                match self.frame().env.update1(name, val) {
+                    Ok(previous) => self.push(previous),
+                    Err(_) => Err(self._names.not_found(name))?,
+                }
             },
 
             Op::APPLY(argc) => {

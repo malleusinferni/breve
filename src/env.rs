@@ -65,11 +65,10 @@ impl Env {
         env.names2.insert(sym, func).is_some()
     }
 
-    pub fn update1(&self, sym: Symbol, val: Val) -> Result<()> {
+    pub fn update1(&self, sym: Symbol, val: Val) -> Result<Val> {
         let mut env = self.0.borrow_mut();
         if env.names1.contains_key(&sym) {
-            env.names1.insert(sym, val);
-            Ok(())
+            Ok(env.names1.insert(sym, val).unwrap())
         } else if let Some(parent) = env.parent.clone() {
             parent.update1(sym, val)
         } else {
