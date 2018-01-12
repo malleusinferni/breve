@@ -299,9 +299,10 @@ impl Interpreter {
         eval.finish()
     }
 
-    pub fn expand(&mut self, name: Symbol, args: ListIter) -> Result<Val> {
-        let (kind, func) = self.root.lookup2(name)
-            .ok_or_else(|| self.names.not_found(name))?;
+    pub fn expand(&mut self, name: Symbol, expr: Val) -> Result<Val> {
+        let (kind, func) = self.root.lookup2(name).map_err(|err| {
+            self.names.convert_err(err)
+        })?;
 
         if let FnKind::Function = kind {
             return Err(Error::MacroCall);
@@ -309,7 +310,9 @@ impl Interpreter {
 
         match func {
             FnRef::Closure(func) => {
-                let (env, func) = func.call(args)?;
+                let (env, func) = func.call(expr).map_err(|err| {
+                    self.names.convert_err(err)
+                })?;
 
                 let root = Frame {
                     env,
@@ -328,7 +331,7 @@ impl Interpreter {
             },
 
             FnRef::Native(func) => {
-                func(args)
+                func(expr.as_list()?)
             },
         }
     }
@@ -396,15 +399,14 @@ impl<'a> Eval<'a> {
         use opcode::Op;
 
         match op {
-            Op::LET => {
-                let val = self.pop()?;
-                let name: Symbol = self.pop()?;
+            Op::LET(bindings) => {
+                let argv = self.pop::<Val>()?;
 
-                self.frame().env.insert1(name, val).map_err(|_| {
-                    self._names.redefined(name)
+                bindings.collect(&self.frame().env, argv).map_err(|err| {
+                    self._names.convert_err(err)
                 })?;
 
-                self.push(Val::Symbol(name));
+                self.push(Val::Nil);
             },
 
             Op::DEF => {
@@ -425,15 +427,18 @@ impl<'a> Eval<'a> {
 
             Op::LOAD1 => {
                 let name: Symbol = self.pop()?;
-                let val = self.frame().env.lookup1(name)
-                    .ok_or_else(|| self._names.not_found(name))?;
+                let val = self.frame().env.lookup1(name).map_err(|err| {
+                    self._names.convert_err(err)
+                })?;
+
                 self.push(val);
             },
 
             Op::LOAD2 => {
                 let name: Symbol = self.pop()?;
-                let (kind, func) = self.frame().env.lookup2(name)
-                    .ok_or_else(|| self._names.not_found(name))?;
+                let (kind, func) = self.frame().env.lookup2(name).map_err(|err| {
+                    self._names.convert_err(err)
+                })?;
 
                 if let FnKind::Function = kind {
                     self.push(Val::FnRef(func));
@@ -447,7 +452,7 @@ impl<'a> Eval<'a> {
                 let name: Symbol = self.pop()?;
                 match self.frame().env.update1(name, val) {
                     Ok(previous) => self.push(previous),
-                    Err(_) => Err(self._names.not_found(name))?,
+                    Err(err) => Err(self._names.convert_err(err))?,
                 }
             },
 
@@ -496,8 +501,9 @@ impl<'a> Eval<'a> {
             Op::DISAS => {
                 let name: Symbol = self.pop()?;
 
-                let (_, func) = self.frame().env.lookup2(name)
-                    .ok_or_else(|| self._names.not_found(name))?;
+                let (_, func) = self.frame().env.lookup2(name).map_err(|err| {
+                    self._names.convert_err(err)
+                })?;
 
                 if let FnRef::Closure(closure) = func {
                     self.disas(closure.as_func())?;
@@ -510,20 +516,22 @@ impl<'a> Eval<'a> {
         Ok(())
     }
 
-    fn collect(&mut self, len: usize) -> Result<ListIter> {
+    fn collect(&mut self, len: usize) -> Result<Val> {
         let start = self.frame().data.len().checked_sub(len)
             .ok_or(Error::ExprStackUnderflow)?;
-        Ok(ListIter::from_iter(self.frame().data.drain(start ..)))
+        Ok(ListIter::from_iter(self.frame().data.drain(start ..)).collect())
     }
 
-    fn apply(&mut self, func: FnRef, args: ListIter) -> Result<()> {
+    fn apply(&mut self, func: FnRef, args: Val) -> Result<()> {
         match func {
             FnRef::Native(native) => {
-                self.push(native(args)?);
+                self.push(native(args.as_list()?)?);
             },
 
             FnRef::Closure(closure) => {
-                let (env, func) = closure.call(args)?;
+                let (env, func) = closure.call(args).map_err(|err| {
+                    self._names.convert_err(err)
+                })?;
 
                 let frame = Frame {
                     env,
@@ -552,7 +560,10 @@ impl<'a> Eval<'a> {
             print!("{:04X}\t", pc);
 
             match *op {
-                Op::LET => println!("LET"),
+                Op::LET(ref bindings) => {
+                    println!("LET {}", bindings.show().show(&self._names)?)
+                },
+
                 Op::DEF => println!("DEF"),
                 Op::SYN => println!("SYN"),
                 Op::LOAD1 => println!("LOAD1"),

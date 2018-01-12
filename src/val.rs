@@ -237,25 +237,20 @@ impl NameTable {
         }
     }
 
-    pub fn not_found(&self, symbol: Symbol) -> Error {
-        match self.resolve(symbol) {
-            Ok(name) => {
-                let name = name.to_owned();
-                Error::NameNotFound { name }
+    pub fn convert_err(&self, err: NameErr) -> Error {
+        match err {
+            NameErr::NotFound { name } => match self.resolve(name) {
+                Ok(name) => Error::NameNotFound { name: name.to_owned() },
+                Err(err) => err,
             },
 
-            Err(err) => err,
-        }
-    }
-
-    pub fn redefined(&self, symbol: Symbol) -> Error {
-        match self.resolve(symbol) {
-            Ok(name) => {
-                let name = name.to_owned();
-                Error::LocalRedefined { name }
+            NameErr::Redefined { name } => match self.resolve(name) {
+                Ok(name) => Error::LocalRedefined { name: name.to_owned() },
+                Err(err) => err,
             },
 
-            Err(err) => err,
+            NameErr::TooManyArgs => Error::TooManyArgs,
+            NameErr::TooFewArgs => Error::TooFewArgs,
         }
     }
 }

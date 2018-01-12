@@ -14,8 +14,13 @@ pub enum FnKind {
 
 pub type Result<T, E=NameErr> = ::std::result::Result<T, E>;
 
-#[derive(Debug)]
-pub struct NameErr;
+#[derive(Clone, Debug)]
+pub enum NameErr {
+    NotFound { name: Symbol },
+    Redefined { name: Symbol },
+    TooManyArgs,
+    TooFewArgs,
+}
 
 struct Inner {
     names1: BTreeMap<Symbol, Val>,
@@ -32,28 +37,36 @@ impl Env {
         Env(Arc::new(RefCell::new(inner)))
     }
 
-    pub fn lookup1(&self, sym: Symbol) -> Option<Val> {
+    pub fn lookup1(&self, sym: Symbol) -> Result<Val> {
         let env = self.0.borrow();
         let parent = env.parent.clone();
 
-        env.names1.get(&sym).cloned().or_else(|| {
-            parent.and_then(|e| e.lookup1(sym))
-        })
+        if let Some(val) = env.names1.get(&sym).cloned() {
+            Ok(val)
+        } else if let Some(parent) = parent {
+            parent.lookup1(sym)
+        } else {
+            Err(NameErr::NotFound { name: sym })
+        }
     }
 
-    pub fn lookup2(&self, sym: Symbol) -> Option<(FnKind, FnRef)> {
+    pub fn lookup2(&self, sym: Symbol) -> Result<(FnKind, FnRef)> {
         let env = self.0.borrow();
         let parent = env.parent.clone();
 
-        env.names2.get(&sym).cloned().or_else(|| {
-            parent.and_then(|e| e.lookup2(sym))
-        })
+        if let Some(func) = env.names2.get(&sym).cloned() {
+            Ok(func)
+        } else if let Some(parent) = parent {
+            parent.lookup2(sym)
+        } else {
+            Err(NameErr::NotFound { name: sym })
+        }
     }
 
     pub fn insert1(&self, sym: Symbol, val: Val) -> Result<()> {
         let mut env = self.0.borrow_mut();
         if env.names1.contains_key(&sym) {
-            Err(NameErr)
+            Err(NameErr::Redefined { name: sym })
         } else {
             env.names1.insert(sym, val);
             Ok(())
@@ -72,7 +85,7 @@ impl Env {
         } else if let Some(parent) = env.parent.clone() {
             parent.update1(sym, val)
         } else {
-            Err(NameErr)
+            Err(NameErr::NotFound { name: sym })
         }
     }
 }

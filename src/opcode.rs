@@ -6,7 +6,7 @@ use super::*;
 
 #[derive(Clone)]
 pub enum Op {
-    LET,
+    LET(Arc<Bindings>),
     DEF,
     SYN,
     LOAD1,
@@ -67,18 +67,18 @@ mod func {
 
 #[derive(Clone)]
 pub struct Lambda {
-    args: ArgList,
+    args: Bindings,
     body: Func,
 }
 
 pub struct Closure {
     env: Env,
-    args: ArgList,
+    args: Bindings,
     body: Func,
 }
 
 #[derive(Clone)]
-struct ArgList {
+pub struct Bindings {
     body: OrderSet<Symbol>,
     foot: Option<Symbol>,
 }
@@ -92,7 +92,7 @@ impl Lambda {
 }
 
 impl Closure {
-    pub fn call(&self, argv: ListIter) -> Result<(Env, Func)> {
+    pub fn call(&self, argv: Val) -> Result<(Env, Func), NameErr> {
         let Closure { ref env, ref args, ref body } = *self;
         let env = env.child();
         args.collect(&env, argv)?;
@@ -104,8 +104,8 @@ impl Closure {
     }
 }
 
-impl ArgList {
-    fn parse(mut list: Val, names: &NameTable) -> Result<Self> {
+impl Bindings {
+    pub fn parse(mut list: Val, names: &NameTable) -> Result<Self> {
         let mut body = OrderSet::new();
         let mut foot = None;
 
@@ -137,47 +137,41 @@ impl ArgList {
             }
         }
 
-        Ok(ArgList { body, foot })
+        Ok(Bindings { body, foot })
     }
 
-    fn collect(&self, env: &Env, mut argv: ListIter) -> Result<()> {
+    pub fn collect(&self, env: &Env, mut val: Val) -> Result<(), NameErr> {
         for &name in self.body.iter() {
-            let val = argv.expect()?;
-            env.insert1(name, val).expect("Failed to define argument");
+            let (car, cdr) = val.uncons().map_err(|_| {
+                NameErr::TooFewArgs
+            })?;
+
+            env.insert1(name, car)?;
+            val = cdr;
         }
 
-        let rest: Val = argv.collect();
-
-        if self.foot.is_none() && !rest.is_nil() {
-            Err(Error::TooManyArgs)
-        } else {
-            if let Some(name) = self.foot.clone() {
-                env.insert1(name, rest).expect("Unreachable");
-            }
-
+        if let Some(name) = self.foot.clone() {
+            env.insert1(name, val)?;
             Ok(())
+        } else if val.is_nil() {
+            Ok(())
+        } else {
+            Err(NameErr::TooManyArgs)
         }
     }
-}
 
-impl Op {
-    pub fn stack_effect(&self) -> (usize, usize) {
-        match *self {
-            Op::LET => (2, 1),
-            Op::DEF => (2, 1),
-            Op::SYN => (2, 1),
-            Op::LOAD1 => (2, 1),
-            Op::LOAD2 => (2, 1),
-            Op::STORE1 => (2, 0),
-            Op::APPLY(argc) => (argc + 1, 1),
-            Op::RET => (1, 0),
-            Op::DROP => (1, 0),
-            Op::QUOTE(_) => (0, 1),
-            Op::JUMP(_) => (0, 0),
-            Op::JNZ(_) => (1, 0),
-            Op::LAMBDA(_) => (0, 1),
-            Op::DISAS => (1, 0),
+    pub fn show(&self) -> Val {
+        let mut tail = if let Some(foot) = self.foot {
+            Val::Symbol(foot)
+        } else {
+            Val::Nil
+        };
+
+        for name in self.body.iter().rev().cloned() {
+            tail = Val::Cons((Val::Symbol(name), tail).into());
         }
+
+        tail
     }
 }
 
@@ -284,13 +278,12 @@ impl<'a> Compiler<'a> {
             },
 
             "let" => {
-                let name = args.expect()?;
+                let bindings = Bindings::parse(args.expect()?, &self.interpreter.name_table())?;
                 let value = args.expect()?;
                 args.end()?;
 
-                self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.tr_expr(value)?;
-                self.emit(Op::LET);
+                self.emit(Op::LET(bindings.into()));
             },
 
             "mut!" => {
@@ -381,7 +374,7 @@ impl<'a> Compiler<'a> {
             },
 
             _ => if self.is_macro(name) {
-                let thing = self.interpreter.expand(name, args)?;
+                let thing = self.interpreter.expand(name, args.collect())?;
                 self.tr_expr(thing)?;
             } else {
                 self.emit(Op::QUOTE(Val::Symbol(name)));
@@ -401,7 +394,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn tr_lambda(&mut self, argv: Val, body: Vec<Val>) -> Result<()> {
-        let args = ArgList::parse(argv, &self.interpreter.name_table())?;
+        let args = Bindings::parse(argv, &self.interpreter.name_table())?;
         let body = self.interpreter.compile(body)?;
         self.emit(Op::LAMBDA(Lambda { args, body }));
 
