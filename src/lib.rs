@@ -397,24 +397,21 @@ impl<'a> Eval<'a> {
                 self.push(Val::Nil);
             },
 
-            Op::DEF => {
+            Op::DEF(name) => {
                 let body: FnRef = self.pop()?;
-                let name: Symbol = self.pop()?;
                 let kind = FnKind::Function;
                 let _redef = self.root.env.insert2(name, (kind, body));
                 self.push(Val::Symbol(name));
             },
 
-            Op::SYN => {
+            Op::SYN(name) => {
                 let body: FnRef = self.pop()?;
-                let name: Symbol = self.pop()?;
                 let kind = FnKind::Macro;
                 let _redef = self.root.env.insert2(name, (kind, body));
                 self.push(Val::Symbol(name));
             },
 
-            Op::LOAD1 => {
-                let name: Symbol = self.pop()?;
+            Op::LOAD1(name) => {
                 let val = self.frame().env.lookup1(name).map_err(|err| {
                     self._names.convert_err(err)
                 })?;
@@ -422,8 +419,7 @@ impl<'a> Eval<'a> {
                 self.push(val);
             },
 
-            Op::LOAD2 => {
-                let name: Symbol = self.pop()?;
+            Op::LOAD2(name) => {
                 let (kind, func) = self.frame().env.lookup2(name).map_err(|err| {
                     self._names.convert_err(err)
                 })?;
@@ -435,9 +431,8 @@ impl<'a> Eval<'a> {
                 }
             },
 
-            Op::STORE1 => {
+            Op::STORE1(name) => {
                 let val: Val = self.pop()?;
-                let name: Symbol = self.pop()?;
                 match self.frame().env.update1(name, val) {
                     Ok(previous) => self.push(previous),
                     Err(err) => Err(self._names.convert_err(err))?,
@@ -544,6 +539,11 @@ impl<'a> Eval<'a> {
 
         let label = |pc| func.jump(pc).ok_or(Error::NoSuchLabel);
 
+        let sym = |sym| match self._names.resolve(sym) {
+            Ok(s) => s.to_owned(),
+            Err(_) => format!("#:{:?}", sym),
+        };
+
         for (pc, op) in func.iter().enumerate() {
             print!("{:04X}\t", pc);
 
@@ -552,11 +552,11 @@ impl<'a> Eval<'a> {
                     println!("LET {}", bindings.show().show(&self._names)?)
                 },
 
-                Op::DEF => println!("DEF"),
-                Op::SYN => println!("SYN"),
-                Op::LOAD1 => println!("LOAD1"),
-                Op::LOAD2 => println!("LOAD2"),
-                Op::STORE1 => println!("STORE1"),
+                Op::DEF(name) => println!("DEF {}", sym(name)),
+                Op::SYN(name) => println!("SYN {}", sym(name)),
+                Op::LOAD1(name) => println!("LOAD1 {}", sym(name)),
+                Op::LOAD2(name) => println!("LOAD2 {}", sym(name)),
+                Op::STORE1(name) => println!("STORE1 {}", sym(name)),
 
                 Op::APPLY(argc) => println!("APPLY {}", argc),
 

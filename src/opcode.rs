@@ -7,11 +7,11 @@ use super::*;
 #[derive(Clone)]
 pub enum Op {
     LET(Arc<Bindings>),
-    DEF,
-    SYN,
-    LOAD1,
-    LOAD2,
-    STORE1,
+    DEF(Symbol),
+    SYN(Symbol),
+    LOAD1(Symbol),
+    LOAD2(Symbol),
+    STORE1(Symbol),
     APPLY(usize),
     RET,
     DROP,
@@ -232,8 +232,7 @@ impl<'a> Compiler<'a> {
     fn tr_expr(&mut self, expr: Val) -> Result<()> {
         match expr {
             Val::Symbol(sym) => {
-                self.emit(Op::QUOTE(Val::Symbol(sym)));
-                self.emit(Op::LOAD1);
+                self.emit(Op::LOAD1(sym));
             },
 
             Val::Cons(pair) => {
@@ -274,8 +273,7 @@ impl<'a> Compiler<'a> {
                 let name = args.expect()?;
                 args.end()?;
 
-                self.emit(Op::QUOTE(Val::Symbol(name)));
-                self.emit(Op::LOAD2);
+                self.emit(Op::LOAD2(name));
             },
 
             "let" => {
@@ -292,9 +290,8 @@ impl<'a> Compiler<'a> {
                 let value = args.expect()?;
                 args.end()?;
 
-                self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.tr_expr(value)?;
-                self.emit(Op::STORE1);
+                self.emit(Op::STORE1(name));
             },
 
             "def" => {
@@ -302,9 +299,8 @@ impl<'a> Compiler<'a> {
                 let argv = args.expect()?;
                 let body = args.collect();
 
-                self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.tr_lambda(argv, body)?;
-                self.emit(Op::DEF);
+                self.emit(Op::DEF(name));
             },
 
             "fn" => {
@@ -351,9 +347,8 @@ impl<'a> Compiler<'a> {
                 let argv = args.expect()?;
                 let body = args.collect();
 
-                self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.tr_lambda(argv, body)?;
-                self.emit(Op::SYN);
+                self.emit(Op::SYN(name));
             },
 
             "call" => {
@@ -378,8 +373,7 @@ impl<'a> Compiler<'a> {
                 let thing = self.interpreter.expand(name, args.collect())?;
                 self.tr_expr(thing)?;
             } else {
-                self.emit(Op::QUOTE(Val::Symbol(name)));
-                self.emit(Op::LOAD2);
+                self.emit(Op::LOAD2(name));
 
                 let argc = args.len();
 
