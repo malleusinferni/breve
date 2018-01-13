@@ -116,7 +116,7 @@ impl Frame {
         use opcode::Op;
 
         match self.func.fetch(self.pc) {
-            Some(Op::RET) => true,
+            None | Some(Op::RET) => true,
             _ => false,
         }
     }

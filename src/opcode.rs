@@ -182,6 +182,7 @@ impl Interpreter {
             compiler.tr_expr(expr)?;
         }
         compiler.emit(Op::RET);
+        compiler.optimize()?;
         let Compiler { code, labels, .. } = compiler;
         Ok(Func::new(code, labels))
     }
@@ -399,6 +400,32 @@ impl<'a> Compiler<'a> {
         self.emit(Op::LAMBDA(Lambda { args, body }));
 
         Ok(())
+    }
+
+    fn optimize(&mut self) -> Result<()> {
+        loop {
+            let mut changed = false;
+
+            for pc in 0 .. self.code.len() {
+                let label = match &self.code[pc] {
+                    &Op::JUMP(label) => label,
+                    _ => continue,
+                };
+
+                let dst = self.labels[&label];
+
+                if let Op::RET = self.code[dst].clone() {
+                    self.code[pc] = Op::RET;
+                    changed = true;
+                }
+            }
+
+            if changed {
+                continue;
+            }
+
+            return Ok(());
+        }
     }
 }
 
