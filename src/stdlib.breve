@@ -1,3 +1,11 @@
+(def car (expr)
+  (let (car & cdr) expr)
+  car)
+
+(def cdr (expr)
+  (let (car & cdr) expr)
+  cdr)
+
 (def nil? (expr)
   (= expr '()))
 

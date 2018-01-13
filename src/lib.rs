@@ -136,18 +136,6 @@ impl Interpreter {
             Ok(Val::Cons((car, cdr).into()))
         })?;
 
-        it.def("car", |mut argv| {
-            let (car, _) = argv.expect()?;
-            argv.end()?;
-            Ok(car)
-        })?;
-
-        it.def("cdr", |mut argv| {
-            let (_, cdr) = argv.expect()?;
-            argv.end()?;
-            Ok(cdr)
-        })?;
-
         it.def("+", |mut argv| {
             let mut sum: i32 = argv.expect()?;
             while argv.has_next() {
