@@ -339,20 +339,6 @@ impl<'a> Compiler<'a> {
                 self.set_label(after)?;
             },
 
-            "do" => {
-                if !args.has_next() {
-                    return Err(Error::TooFewArgs);
-                }
-
-                while let Some(arg) = args.next() {
-                    self.tr_expr(arg)?;
-
-                    if args.has_next() {
-                        self.emit(Op::DROP);
-                    }
-                }
-            },
-
             "syn" => {
                 let name = args.expect()?;
                 let argv = args.expect()?;

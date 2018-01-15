@@ -50,6 +50,15 @@
       n))
   (iter 0 list))
 
+(def last (xs)
+  (let (car & cdr) xs)
+  (if cdr
+    (last cdr)
+    car))
+
+(def do exprs
+  (last exprs))
+
 (def not (xs)
   (if xs 't '()))
 
