@@ -84,6 +84,9 @@ pub enum Error {
 
     #[fail(display="unimplemented form {}", form)]
     UnimplementedForm { form: String },
+
+    #[fail(display="assertion failed")]
+    AssertFailed,
 }
 
 pub struct Interpreter {
@@ -243,6 +246,16 @@ impl Interpreter {
                 }))
             })?;
         }
+
+        it.def("assert", |mut argv| {
+            let val = argv.expect::<Val>()?;
+            argv.end()?;
+
+            match val {
+                Val::Nil => Err(Error::AssertFailed),
+                _ => Ok(Val::True),
+            }
+        })?;
 
         let stdlib = include_str!("stdlib.breve");
         it.parse(&stdlib).and_then(|forms| {

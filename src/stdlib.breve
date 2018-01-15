@@ -50,17 +50,28 @@
       n))
   (iter 0 list))
 
+(assert (= (len '(1 2 3 4 5)) 5))
+
 (def last (xs)
   (let (car & cdr) xs)
   (if cdr
     (last cdr)
     car))
 
+(assert (= (last '(1 2 3 4 5)) 5))
+
 (def do exprs
   (last exprs))
 
+(assert (= 5 (do 1 2 3 4 5)))
+
 (def not (xs)
   (if xs true '()))
+
+(def append (lhs rhs)
+  (if lhs
+    (cons (car lhs) (append (cdr lhs) rhs))
+    rhs))
 
 (def map (f xs)
   (if xs
@@ -95,10 +106,6 @@
 (def 3rd (xs)
   (car (cdr (cdr xs))))
 
-(syn with (head & body)
-  (let (names expr) head)
-  (list 'call (append (list 'fn '() (list 'let names expr)) body)))
-
 (def iota (n)
   (let iter
     (fn (i)
@@ -107,10 +114,11 @@
         (cons i (call iter (+ i 1))))))
   (call iter 1))
 
-(def append (lhs rhs)
-  (if lhs
-    (cons (car lhs) (append (cdr lhs) rhs))
-    rhs))
+(syn with (head & body)
+  (let (names expr) head)
+  (list 'call (append (list 'fn '() (list 'let names expr)) body)))
+
+(assert (= (with (x 1) x) 1))
 
 (syn cond (test expr & rest)
   (list 'if test expr (if rest (cons 'cond rest) rest)))
@@ -150,5 +158,3 @@
 
 (syn pop! (name)
   `(car (mut! ,name (cdr ,name))))
-
-(append (iota 7) (map (fn (n) (+ 7 n)) (iota 7)))
