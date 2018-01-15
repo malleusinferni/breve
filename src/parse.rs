@@ -76,11 +76,15 @@ impl<'a> Stream<'a> {
                 }
 
                 if let Ok(int) = name.parse::<i32>() {
-                    return Ok(Val::Int(int));
+                    Ok(Val::Int(int))
+                } else if name == "true" {
+                    Ok(Val::True)
+                } else if name == "nil" {
+                    Ok(Val::Nil)
+                } else {
+                    let sym = self.names.intern(&name);
+                    Ok(Val::Symbol(sym))
                 }
-
-                let sym = self.names.intern(&name);
-                Ok(Val::Symbol(sym))
             },
         }
     }

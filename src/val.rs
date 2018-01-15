@@ -9,6 +9,7 @@ use super::*;
 #[derive(Clone, Eq, PartialEq)]
 pub enum Val {
     Nil,
+    True,
     Cons(Arc<(Val, Val)>),
     Int(i32),
     Symbol(Symbol),
@@ -75,6 +76,7 @@ impl Val {
     pub fn type_name(&self) -> &'static str {
         match *self {
             Val::Nil => "nil",
+            Val::True => "boolean",
             Val::Int(_) => "int",
             Val::Symbol(_) => "symbol",
             Val::Cons(_) => "cons",

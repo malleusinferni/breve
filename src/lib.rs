@@ -168,15 +168,13 @@ impl Interpreter {
             Ok(Val::Int(prod))
         })?;
 
-        let t = it.names.intern("t");
-
         it.def("=", move |mut argv| {
             let lhs: Val = argv.expect()?;
             let rhs: Val = argv.expect()?;
             argv.end()?;
 
             if lhs == rhs {
-                Ok(Val::Symbol(t))
+                Ok(Val::True)
             } else {
                 Ok(Val::Nil)
             }
@@ -194,7 +192,7 @@ impl Interpreter {
                 }
             }
 
-            Ok(Val::Symbol(t))
+            Ok(Val::True)
         })?;
 
         it.def(">", move |mut argv| {
@@ -209,7 +207,7 @@ impl Interpreter {
                 }
             }
 
-            Ok(Val::Symbol(t))
+            Ok(Val::True)
         })?;
 
         it.def("list?", move |mut argv| {
@@ -217,7 +215,7 @@ impl Interpreter {
             argv.end()?;
 
             if expr.is_list() {
-                Ok(Val::Symbol(t))
+                Ok(Val::True)
             } else {
                 Ok(Val::Nil)
             }
@@ -225,6 +223,7 @@ impl Interpreter {
 
         {
             let nil = it.names.intern("nil");
+            let boolean = it.names.intern("boolean");
             let int = it.names.intern("int");
             let symbol = it.names.intern("symbol");
             let cons = it.names.intern("cons");
@@ -236,6 +235,7 @@ impl Interpreter {
 
                 Ok(Val::Symbol(match expr {
                     Val::Nil => nil,
+                    Val::True => boolean,
                     Val::Int(_) => int,
                     Val::Symbol(_) => symbol,
                     Val::Cons(_) => cons,
@@ -612,7 +612,8 @@ impl<'a> Fmt<'a> {
                 self.buf.push_str(&format!("{}", int));
             },
 
-            Val::Nil => self.buf.push_str("()"),
+            Val::Nil => self.buf.push_str("nil"),
+            Val::True => self.buf.push_str("true"),
 
             Val::Cons(ref pair) => {
                 let mut pair: &(Val, Val) = pair.as_ref();

@@ -26,7 +26,7 @@
 (syn or (expr & rest)
   (if (nil? rest)
     expr
-    (list 'if expr ''t (cons 'or rest))))
+    (list 'if expr true (cons 'or rest))))
 
 (def caar (xs) (car (car xs)))
 (def cadr (xs) (car (cdr xs)))
@@ -60,7 +60,7 @@
   (last exprs))
 
 (def not (xs)
-  (if xs 't '()))
+  (if xs true '()))
 
 (def map (f xs)
   (if xs
