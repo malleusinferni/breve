@@ -18,15 +18,35 @@
 (def symbol? (expr)
   (= (type expr) 'symbol))
 
-(syn push! (name expr)
-  (list 'mut! name (list 'cons expr name)))
+(syn and (expr & rest)
+  (if (nil? rest)
+    expr
+    (list 'if expr (cons 'and rest) '())))
 
-(syn pop! (name)
-  (list 'car (list 'mut! name (list 'cdr name))))
+(syn or (lhs rhs)
+  (list 'if lhs ''t rhs))
+
+(def caar (xs) (car (car xs)))
+(def cadr (xs) (car (cdr xs)))
+(def cdar (xs) (cdr (car xs)))
+(def cddr (xs) (cdr (cdr xs)))
+
+(def caaar (xs) (car (car (car xs))))
+(def caadr (xs) (car (car (cdr xs))))
+(def cadar (xs) (car (cdr (car xs))))
+(def caddr (xs) (car (cdr (cdr xs))))
+
+(def cdaar (xs) (cdr (car (car xs))))
+(def cdadr (xs) (cdr (car (cdr xs))))
+(def cddar (xs) (cdr (cdr (car xs))))
+(def cdddr (xs) (cdr (cdr (cdr xs))))
 
 (def len (list)
-  (let iter (fn (n xs) (if xs (call iter (+ 1 n) (cdr xs)) n)))
-  (call iter 0 list))
+  (label iter (n xs)
+    (if xs
+      (iter (+ 1 n) (cdr xs))
+      n))
+  (iter 0 list))
 
 (def not (xs)
   (if xs 't '()))
@@ -36,17 +56,37 @@
     (cons (call f (car xs)) (map f (cdr xs)))
     xs))
 
+(def filter (f xs)
+  (if (nil? xs)
+    xs
+    (if (call f (car xs))
+      (cons (car xs) (filter f (cdr xs)))
+      (filter f (cdr xs)))))
+
+(def fold (f z xs)
+  (if (cons? xs)
+    (call f (car xs) (fold f z (cdr xs)))
+    z))
+
 (def list items items)
 
 (def nth (i xs)
-  (if (> i 0)
+  (if (> i 1)
     (nth (- i 1) (cdr xs))
     (car xs)))
 
+(def 1st (xs)
+  (car xs))
+
+(def 2nd (xs)
+  (car (cdr xs)))
+
+(def 3rd (xs)
+  (car (cdr (cdr xs))))
+
 (syn with (head & body)
-  (let names (pop! head))
-  (let expr (pop! head))
-  (list 'call (cons 'fn (cons names body)) expr))
+  (let (names expr) head)
+  (list 'call (append (list 'fn '() (list 'let names expr)) body)))
 
 (syn when (test & body)
   (list 'if test
@@ -65,5 +105,39 @@
   (if lhs
     (cons (car lhs) (append (cdr lhs) rhs))
     rhs))
+
+(syn cond (test expr & rest)
+  (list 'if test expr (if rest (cons 'cond rest) rest)))
+
+(def quote? (tag expr)
+  (and (list? expr)
+       (= (len expr) 2)
+       (= (car expr) tag)))
+
+(syn quasi (ast)
+  (label expand-list (xs)
+    (if (nil? xs)
+      xs
+      (do
+        (let (car & cdr) xs)
+        (mut! cdr (expand-list cdr))
+        (if (quote? 'unsplice car)
+          (list 'append (2nd car) cdr)
+          (list 'cons (expand-item car) cdr)))))
+
+  (label expand-item (expr)
+    (cond
+      (quote? 'unquote expr) (2nd expr)
+      (quote? 'unsplice expr) syntax-error
+      (list? expr) (expand-list expr)
+      'else (list 'quote expr)))
+
+  (expand-item ast))
+
+(syn push! (name expr)
+  `(mut! ,name (cons ,expr ,name)))
+
+(syn pop! (name)
+  `(car (mut! ,name (cdr ,name))))
 
 (append (iota 7) (map (fn (n) (+ 7 n)) (iota 7)))
