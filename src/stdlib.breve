@@ -23,8 +23,10 @@
     expr
     (list 'if expr (cons 'and rest) '())))
 
-(syn or (lhs rhs)
-  (list 'if lhs ''t rhs))
+(syn or (expr & rest)
+  (if (nil? rest)
+    expr
+    (list 'if expr ''t (cons 'or rest))))
 
 (def caar (xs) (car (car xs)))
 (def cadr (xs) (car (cdr xs)))
