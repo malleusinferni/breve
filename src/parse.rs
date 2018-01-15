@@ -45,9 +45,14 @@ impl<'a> Stream<'a> {
 
             '\'' => self.quoted("quote"),
 
-            '#' => self.quoted("fnquote"),
-
             '`' => self.quoted("quasi"),
+
+            '#' => if self.lookahead() == Some('\'') {
+                self.input.next();
+                self.quoted("fnquote")
+            } else {
+                Err(Error::IllegalToken)
+            },
 
             ',' => if self.lookahead() == Some('@') {
                 self.input.next();
