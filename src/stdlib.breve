@@ -99,11 +99,6 @@
   (let (names expr) head)
   (list 'call (append (list 'fn '() (list 'let names expr)) body)))
 
-(syn when (test & body)
-  (list 'if test
-    (cons 'do body)
-    (list)))
-
 (def iota (n)
   (let iter
     (fn (i)
@@ -144,6 +139,11 @@
       'else (list 'quote expr)))
 
   (expand-item ast))
+
+(syn when (test & body)
+  `(if ,test
+     (do ,@body)
+     ()))
 
 (syn push! (name expr)
   `(mut! ,name (cons ,expr ,name)))
