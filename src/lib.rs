@@ -447,8 +447,13 @@ impl<'a> Eval<'a> {
                 }
             },
 
-            Op::APPLY(argc) => {
+            Op::COLLECT(argc) => {
                 let args = self.collect(argc)?;
+                self.push(args);
+            },
+
+            Op::APPLY => {
+                let args = self.pop()?;
                 let func: FnRef = self.pop()?;
                 self.apply(func, args)?;
             },
@@ -567,7 +572,8 @@ impl<'a> Eval<'a> {
                 Op::LOAD2(name) => println!("LOAD2 {}", sym(name)),
                 Op::STORE1(name) => println!("STORE1 {}", sym(name)),
 
-                Op::APPLY(argc) => println!("APPLY {}", argc),
+                Op::COLLECT(argc) => println!("COLLECT {}", argc),
+                Op::APPLY => println!("APPLY"),
 
                 Op::RET => println!("RET"),
                 Op::DROP => println!("DROP"),

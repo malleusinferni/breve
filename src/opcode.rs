@@ -13,7 +13,8 @@ pub enum Op {
     LOAD1(Symbol),
     LOAD2(Symbol),
     STORE1(Symbol),
-    APPLY(usize),
+    COLLECT(usize),
+    APPLY,
     RET,
     DROP,
     QUOTE(Val),
@@ -361,6 +362,13 @@ impl<'a> Compiler<'a> {
                 self.emit(Op::SYN(name));
             },
 
+            "apply" => {
+                self.tr_expr(args.expect()?)?;
+                self.tr_expr(args.expect()?)?;
+                args.end()?;
+                self.emit(Op::APPLY);
+            },
+
             "call" => {
                 self.tr_expr(args.expect()?)?;
 
@@ -370,7 +378,8 @@ impl<'a> Compiler<'a> {
                     self.tr_expr(arg)?;
                 }
 
-                self.emit(Op::APPLY(argc));
+                self.emit(Op::COLLECT(argc));
+                self.emit(Op::APPLY);
             },
 
             "disas" => {
@@ -391,7 +400,8 @@ impl<'a> Compiler<'a> {
                     self.tr_expr(arg)?;
                 }
 
-                self.emit(Op::APPLY(argc));
+                self.emit(Op::COLLECT(argc));
+                self.emit(Op::APPLY);
             },
         }
 
