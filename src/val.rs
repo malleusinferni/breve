@@ -231,6 +231,11 @@ impl NameTable {
         self.0.get(name).cloned().unwrap()
     }
 
+    pub fn gensym(&mut self) -> Symbol {
+        let n = format!("#:{:x}", self.0.len());
+        self.intern(&n)
+    }
+
     pub fn resolve(&self, sym: Symbol) -> Result<&str> {
         if let Some((name, _)) = self.0.get_index(sym.0) {
             Ok(name)

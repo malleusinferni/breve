@@ -153,6 +153,15 @@
      (do ,@body)
      ()))
 
+(syn case (expr & branches)
+  (let expr-name (gensym))
+
+  (label expand-branch (head body & branches)
+    (let else (if branches (apply #'expand-branch branches) nil))
+    `(if (= ,expr-name ,head) ,body ,else))
+
+  `(with (,expr-name ,expr) ,(apply #'expand-branch branches)))
+
 (syn push! (name expr)
   `(mut! ,name (cons ,expr ,name)))
 

@@ -520,6 +520,11 @@ impl<'a> Eval<'a> {
                     println!("Native function");
                 }
             },
+
+            Op::GENSYM => {
+                let name = self._names.gensym();
+                self.push(Val::Symbol(name));
+            },
         }
 
         Ok(())
@@ -601,6 +606,7 @@ impl<'a> Eval<'a> {
                 Op::LAMBDA(_) => println!("LAMBDA ..."),
 
                 Op::DISAS => println!("DISAS"),
+                Op::GENSYM => println!("GENSYM"),
             }
         }
 

@@ -22,6 +22,7 @@ pub enum Op {
     JNZ(Label),
     LAMBDA(Lambda),
     DISAS,
+    GENSYM,
 }
 
 #[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
@@ -372,6 +373,11 @@ impl<'a> Compiler<'a> {
                 let name = args.expect()?;
                 self.emit(Op::QUOTE(Val::Symbol(name)));
                 self.emit(Op::DISAS);
+            },
+
+            "gensym" => {
+                args.end()?;
+                self.emit(Op::GENSYM);
             },
 
             _ => if self.is_macro(name) {
