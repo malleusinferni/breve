@@ -1,18 +1,13 @@
 (def fib (n)
-  (let iter
-    (fn (i a b)
-      (if (> i 1)
-        (call iter (- i 1) (+ a b) a)
-        a)))
-  (call iter n 1 0))
+  (label iter (i a b)
+    (if (> i 1)
+      (iter (- i 1) (+ a b) a)
+      a))
+  (iter n 1 0))
+
+(map #'fib (iota 10))
 
 (def fac (n)
-  (let iter
-    (fn (i o)
-      (if (> i 0)
-        (call iter (- i 1) (* i o))
-        o)))
-  (call iter n 1))
+  (apply #'* (iota n)))
 
-(map #fib (iota 10))
-(map #fac (iota 10))
+(map #'fac (iota 10))
