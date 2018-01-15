@@ -397,6 +397,14 @@ impl<'a> Eval<'a> {
                 self.push(Val::Nil);
             },
 
+            Op::LET2(name) => {
+                let body: FnRef = self.pop()?;
+                self.frame().env.let2(name, body).map_err(|err| {
+                    self._names.convert_err(err)
+                })?;
+                self.push(Val::Symbol(name));
+            },
+
             Op::DEF(name) => {
                 let body: FnRef = self.pop()?;
                 let kind = FnKind::Function;
@@ -552,6 +560,7 @@ impl<'a> Eval<'a> {
                     println!("LET {}", bindings.show().show(&self._names)?)
                 },
 
+                Op::LET2(name) => println!("LET2 {}", sym(name)),
                 Op::DEF(name) => println!("DEF {}", sym(name)),
                 Op::SYN(name) => println!("SYN {}", sym(name)),
                 Op::LOAD1(name) => println!("LOAD1 {}", sym(name)),

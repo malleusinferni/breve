@@ -7,6 +7,7 @@ use super::*;
 #[derive(Clone)]
 pub enum Op {
     LET(Arc<Bindings>),
+    LET2(Symbol),
     DEF(Symbol),
     SYN(Symbol),
     LOAD1(Symbol),
@@ -301,6 +302,15 @@ impl<'a> Compiler<'a> {
 
                 self.tr_lambda(argv, body)?;
                 self.emit(Op::DEF(name));
+            },
+
+            "label" => {
+                let name = args.expect()?;
+                let argv = args.expect()?;
+                let body = args.collect();
+
+                self.tr_lambda(argv, body)?;
+                self.emit(Op::LET2(name));
             },
 
             "fn" => {

@@ -78,6 +78,16 @@ impl Env {
         env.names2.insert(sym, func).is_some()
     }
 
+    pub fn let2(&self, sym: Symbol, func: FnRef) -> Result<()> {
+        let mut env = self.0.borrow_mut();
+        if env.names2.contains_key(&sym) {
+            Err(NameErr::Redefined { name: sym })
+        } else {
+            env.names2.insert(sym, (FnKind::Function, func));
+            Ok(())
+        }
+    }
+
     pub fn update1(&self, sym: Symbol, val: Val) -> Result<Val> {
         let mut env = self.0.borrow_mut();
         if env.names1.contains_key(&sym) {
