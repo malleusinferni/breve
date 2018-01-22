@@ -1,6 +1,6 @@
-extern crate breve;
+extern crate rustyline;
 
-use breve::*;
+extern crate breve;
 
 fn main() {
     let mut it = breve::Interpreter::new().unwrap();
@@ -8,41 +8,41 @@ fn main() {
     if let Some(path) = std::env::args().nth(1) {
         let source = readfile(&path).unwrap();
 
-        eval_print(&mut it, &source).unwrap_or_else(|err| {
+        it.parse(&source).and_then(|input| {
+            it.eval_and_print(input.into_iter())
+        }).unwrap_or_else(|err| {
             println!("Error: {}", err);
         });
 
         return;
     }
 
+    let mut editor = rustyline::Editor::<()>::new();
+
     loop {
-        let line = readline().unwrap();
+        use rustyline::error::ReadlineError;
 
-        if line.is_empty() {
-            return;
+        match editor.readline("breve> ") {
+            Err(ReadlineError::Eof) => {
+                return;
+            },
+
+            Err(err) => {
+                println!("Error: {:?}", err);
+                return;
+            },
+
+            Ok(line) => it.parse(&line).and_then(|input| {
+                editor.add_history_entry(&line);
+                it.eval_and_print(input.into_iter())
+            }).unwrap_or_else(|err| {
+                println!("Error: {}", err);
+            }),
         }
-
-        eval_print(&mut it, &line).unwrap_or_else(|err| {
-            println!("Error: {}", err);
-        });
     }
 }
 
-use std::io::{self, stdin, stdout, BufRead, Read, Write};
-
-fn readline() -> io::Result<String> {
-    let mut buf = String::new();
-
-    let () = {
-        print!("breve> ");
-        stdout().flush()?;
-    };
-
-    let stdin = stdin();
-    stdin.lock().read_line(&mut buf)?;
-
-    Ok(buf)
-}
+use std::io::{self, Read};
 
 fn readfile(path: &str) -> io::Result<String> {
     use std::fs::File;
@@ -51,19 +51,4 @@ fn readfile(path: &str) -> io::Result<String> {
     File::open(path)?.read_to_string(&mut buf)?;
 
     Ok(buf)
-}
-
-fn eval_print(it: &mut Interpreter, input: &str) -> Result<()> {
-    let input = it.parse(input)?;
-
-    //for val in &input {
-    //    println!("INPUT: {}", it.show(val.clone())?);
-    //}
-
-    for expr in input {
-        let result = it.eval(expr)?;
-        println!("{}", it.show(result)?);
-    }
-
-    Ok(())
 }

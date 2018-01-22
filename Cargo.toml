@@ -5,4 +5,5 @@ version = "0.1.0"
 [dependencies]
 failure = "0.1.1"
 failure_derive = "0.1.1"
-ordermap = "0.3.2"
+ordermap = "0.3"
+rustyline = "1.0.0"

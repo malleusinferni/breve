@@ -359,6 +359,17 @@ impl Interpreter {
     pub fn show(&self, val: Val) -> Result<String> {
         val.show(&self.names)
     }
+
+    pub fn eval_and_print<I>(&mut self, forms: I) -> Result<()>
+        where I: Iterator<Item=Val>
+    {
+        for expr in forms {
+            let result = self.eval(expr)?;
+            println!("{}", self.show(result)?);
+        }
+
+        Ok(())
+    }
 }
 
 impl Val {
