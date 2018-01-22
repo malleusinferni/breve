@@ -228,6 +228,7 @@ impl Interpreter {
             let nil = it.names.intern("nil");
             let boolean = it.names.intern("boolean");
             let int = it.names.intern("int");
+            let string = it.names.intern("string");
             let symbol = it.names.intern("symbol");
             let cons = it.names.intern("cons");
             let closure = it.names.intern("closure");
@@ -240,6 +241,7 @@ impl Interpreter {
                     Val::Nil => nil,
                     Val::True => boolean,
                     Val::Int(_) => int,
+                    Val::Str(_) => string,
                     Val::Symbol(_) => symbol,
                     Val::Cons(_) => cons,
                     Val::FnRef(_) => closure,
@@ -255,6 +257,19 @@ impl Interpreter {
                 Val::Nil => Err(Error::AssertFailed),
                 _ => Ok(Val::True),
             }
+        })?;
+
+        it.def("unwords", |mut argv| {
+            let first = argv.expect::<Arc<str>>()?;
+            let mut buf = String::from(first.as_ref());
+
+            for word in argv {
+                let string = word.expect::<Arc<str>>()?;
+                buf.push(' ');
+                buf.push_str(string.as_ref());
+            }
+
+            Ok(Val::Str(buf.into()))
         })?;
 
         let stdlib = include_str!("stdlib.breve");
@@ -629,6 +644,20 @@ impl<'a> Fmt<'a> {
 
             Val::Int(int) => {
                 self.buf.push_str(&format!("{}", int));
+            },
+
+            Val::Str(ref string) => {
+                self.buf.push('"');
+
+                for ch in string.chars() {
+                    if ch == '"' {
+                        self.buf.push('\\');
+                    }
+
+                    self.buf.push(ch);
+                }
+
+                self.buf.push('"');
             },
 
             Val::Nil => self.buf.push_str("nil"),

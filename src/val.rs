@@ -12,6 +12,7 @@ pub enum Val {
     True,
     Cons(Arc<(Val, Val)>),
     Int(i32),
+    Str(Arc<str>),
     Symbol(Symbol),
     FnRef(FnRef),
 }
@@ -78,6 +79,7 @@ impl Val {
             Val::Nil => "nil",
             Val::True => "boolean",
             Val::Int(_) => "int",
+            Val::Str(_) => "string",
             Val::Symbol(_) => "symbol",
             Val::Cons(_) => "cons",
             Val::FnRef(_) => "closure",
@@ -102,6 +104,19 @@ impl Valuable for i32 {
 
             other => Err(Error::WrongType {
                 wanted: "int",
+                found: other.type_name(),
+            }),
+        }
+    }
+}
+
+impl Valuable for Arc<str> {
+    fn from_value(val: Val) -> Result<Self> {
+        match val {
+            Val::Str(s) => Ok(s),
+
+            other => Err(Error::WrongType {
+                wanted: "string",
                 found: other.type_name(),
             }),
         }

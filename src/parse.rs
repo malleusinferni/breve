@@ -61,6 +61,31 @@ impl<'a> Stream<'a> {
                 self.quoted("unquote")
             },
 
+            '"' => {
+                let mut buf = String::new();
+
+                while let Some(ch) = self.input.next() {
+                    match ch {
+                        '"' => {
+                            return Ok(Val::Str(buf.into()));
+                        },
+
+                        '\\' => {
+                            let escaped = self.input.next().ok_or({
+                                Error::IllegalToken
+                            })?;
+                            buf.push(escaped);
+                        },
+
+                        _ => {
+                            buf.push(ch);
+                        },
+                    }
+                }
+
+                Err(Error::IllegalToken)
+            },
+
             w => {
                 let mut name = String::new();
                 name.push(w);
