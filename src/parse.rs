@@ -35,11 +35,15 @@ impl<'a> Stream<'a> {
         self.input.peek().cloned()
     }
 
+    fn expect_char(&mut self) -> Result<char> {
+        self.input.next().ok_or(Error::UnexpectedEof)
+    }
+
     fn next_value(&mut self) -> Result<Val> {
-        match self.input.next().ok_or(Error::UnexpectedEof)? {
+        match self.expect_char()? {
             '(' => self.list_tail(),
 
-            '&' => Err(Error::NotAList),
+            '&' => Err(Error::UnexpectedAmpersand),
 
             ')' => Err(Error::UnmatchedRightParen),
 
@@ -128,11 +132,16 @@ impl<'a> Stream<'a> {
             '&' => {
                 self.input.next();
                 self.skip_whitespace()?;
+
+                if let Some(')') = self.lookahead() {
+                    return Err(Error::ExpectedExpr);
+                }
+
                 let cdr = self.next_value()?;
                 self.skip_whitespace()?;
-                match self.input.next().ok_or(Error::UnexpectedEof)? {
+                match self.expect_char()? {
                     ')' => Ok(cdr),
-                    _ => Err(Error::NotAList),
+                    _ => Err(Error::UnclosedList),
                 }
             },
 

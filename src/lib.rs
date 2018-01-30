@@ -43,6 +43,15 @@ pub enum Error {
     #[fail(display="unmatched closing parenthesis")]
     UnmatchedRightParen,
 
+    #[fail(display="ampersand outside list context")]
+    UnexpectedAmpersand,
+
+    #[fail(display="expected expression in list tail")]
+    ExpectedExpr,
+
+    #[fail(display="unclosed list (unmatched left paren)")]
+    UnclosedList,
+
     #[fail(display="failed to parse list")]
     FailedToParseList,
 
