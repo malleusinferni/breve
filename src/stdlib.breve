@@ -116,7 +116,7 @@
 
 (syn with (head & body)
   (let (names expr) head)
-  (list 'call (append (list 'fn '() (list 'let names expr)) body)))
+  `(call (fn () (let ,names ,expr) ,@body)))
 
 (assert (= (with (x 1) x) 1))
 
