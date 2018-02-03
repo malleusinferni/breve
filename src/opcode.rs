@@ -252,6 +252,30 @@ impl<'a> Compiler<'a> {
                 }
             },
 
+            Val::Tagged(pair) => {
+                let (tag, body) = pair.as_ref().clone();
+
+                match self.interpreter.name_table().resolve(tag)? {
+                    "quote" => self.emit(Op::QUOTE(body)),
+
+                    "fnquote" => {
+                        let name = body.expect()?;
+                        self.emit(Op::LOAD2(name));
+                    },
+
+                    "unquote" | "unsplice" => {
+                        Err(Error::IllegalUnquote)?;
+                    },
+
+                    "quasi" => {
+                        let body = body.unquasi(self.interpreter.name_table())?;
+                        self.tr_expr(body)?;
+                    },
+
+                    _ => Err(Error::IllegalToken)?,
+                }
+            },
+
             other => {
                 self.emit(Op::QUOTE(other));
             },
@@ -265,20 +289,6 @@ impl<'a> Compiler<'a> {
             .resolve(name)?.to_owned();
 
         match string.as_str() {
-            "quote" => {
-                let arg = args.expect()?;
-                args.end()?;
-
-                self.emit(Op::QUOTE(arg));
-            },
-
-            "fnquote" => {
-                let name = args.expect()?;
-                args.end()?;
-
-                self.emit(Op::LOAD2(name));
-            },
-
             "let" => {
                 let bindings = Bindings::parse(args.expect()?, &self.interpreter.name_table())?;
                 let value = args.expect()?;
@@ -438,5 +448,65 @@ impl<'a> Compiler<'a> {
 impl From<Label> for usize {
     fn from(Label(u): Label) -> Self {
         u
+    }
+}
+
+impl Val {
+    fn untag(&self, expected: Symbol) -> Option<Self> {
+        match *self {
+            Val::Tagged(ref pair) => {
+                let (tag, body) = pair.as_ref().clone();
+                if tag == expected {
+                    Some(body)
+                } else {
+                    None
+                }
+            },
+
+            _ => None,
+        }
+    }
+
+    fn unquasi(&self, names: &mut NameTable) -> Result<Self> {
+        Ok(match *self {
+            Val::Tagged(ref pair) => {
+                let (tag, body) = pair.as_ref().clone();
+
+                match names.resolve(tag)? {
+                    "unquote" => body,
+
+                    "unsplice" => Err(Error::IllegalUnquote)?,
+
+                    _ => {
+                        let tag = names.intern("quote");
+                        Val::Tagged((tag, self.clone()).into())
+                    },
+                }
+            },
+
+            Val::Cons(ref pair) => {
+                let (mut car, cdr) = pair.as_ref().clone();
+                let cdr = cdr.unquasi(names)?;
+
+                let unsplice = names.intern("unsplice");
+                let append = Val::Symbol(names.intern("append"));
+                let cons = Val::Symbol(names.intern("cons"));
+
+                if let Some(body) = car.untag(unsplice) {
+                    // `(append ,body ,cdr)
+                    vec![append, body, cdr].into_iter().collect()
+                } else {
+                    // `(cons ,car ,cdr)
+                    vec![cons, car.unquasi(names)?, cdr].into_iter().collect()
+                }
+            },
+
+            Val::Symbol(_) => {
+                let tag = names.intern("quote");
+                Val::Tagged((tag, self.clone()).into())
+            },
+
+            _ => self.clone(),
+        })
     }
 }

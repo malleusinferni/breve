@@ -121,32 +121,10 @@
 (assert (= (with (x 1) x) 1))
 
 (syn cond (test expr & rest)
-  (list 'if test expr (if rest (cons 'cond rest) rest)))
+  `(if ,test ,expr ,(if rest (cons 'cond rest) nil)))
 
-(def quote? (tag expr)
-  (and (list? expr)
-       (= (len expr) 2)
-       (= (car expr) tag)))
-
-(syn quasi (ast)
-  (label expand-list (xs)
-    (if (nil? xs)
-      xs
-      (do
-        (let (car & cdr) xs)
-        (mut! cdr (expand-list cdr))
-        (if (quote? 'unsplice car)
-          (list 'append (2nd car) cdr)
-          (list 'cons (expand-item car) cdr)))))
-
-  (label expand-item (expr)
-    (cond
-      (quote? 'unquote expr) (2nd expr)
-      (quote? 'unsplice expr) syntax-error
-      (list? expr) (expand-list expr)
-      'else (list 'quote expr)))
-
-  (expand-item ast))
+(syn quote (expr)
+  (tagged 'quote expr))
 
 (syn when (test & body)
   `(if ,test

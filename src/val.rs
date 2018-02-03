@@ -11,6 +11,7 @@ pub enum Val {
     Nil,
     True,
     Cons(Arc<(Val, Val)>),
+    Tagged(Arc<(Symbol, Val)>),
     Int(i32),
     Str(Arc<str>),
     Symbol(Symbol),
@@ -82,6 +83,7 @@ impl Val {
             Val::Str(_) => "string",
             Val::Symbol(_) => "symbol",
             Val::Cons(_) => "cons",
+            Val::Tagged(_) => "tagged",
             Val::FnRef(_) => "closure",
         }
     }

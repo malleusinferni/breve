@@ -47,22 +47,22 @@ impl<'a> Stream<'a> {
 
             ')' => Err(Error::UnmatchedRightParen),
 
-            '\'' => self.quoted("quote"),
+            '\'' => self.tagged("quote"),
 
-            '`' => self.quoted("quasi"),
+            '`' => self.tagged("quasi"),
 
             '#' => if self.lookahead() == Some('\'') {
                 self.input.next();
-                self.quoted("fnquote")
+                self.tagged("fnquote")
             } else {
                 Err(Error::IllegalToken)
             },
 
             ',' => if self.lookahead() == Some('@') {
                 self.input.next();
-                self.quoted("unsplice")
+                self.tagged("unsplice")
             } else {
-                self.quoted("unquote")
+                self.tagged("unquote")
             },
 
             '"' => {
@@ -118,10 +118,10 @@ impl<'a> Stream<'a> {
         }
     }
 
-    fn quoted(&mut self, name: &'static str) -> Result<Val> {
+    fn tagged(&mut self, name: &'static str) -> Result<Val> {
         self.next_value().map(|arg| {
-            let name = Val::Symbol(self.names.intern(name));
-            Val::Cons((name, Val::Cons((arg, Val::Nil).into())).into())
+            let name = self.names.intern(name);
+            Val::Tagged((name, arg).into())
         })
     }
 

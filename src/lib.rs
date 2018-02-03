@@ -88,6 +88,9 @@ pub enum Error {
     #[fail(display="encountered an illegal token")]
     IllegalToken,
 
+    #[fail(display="unquoted value outside of quasiquote")]
+    IllegalUnquote,
+
     #[fail(display="illegal macro invocation")]
     MacroCall,
 
@@ -146,6 +149,13 @@ impl Interpreter {
             let cdr = argv.expect()?;
             argv.end()?;
             Ok(Val::Cons((car, cdr).into()))
+        })?;
+
+        it.def("tagged", |mut argv| {
+            let tag = argv.expect::<Symbol>()?;
+            let value = argv.expect()?;
+            argv.end()?;
+            Ok(Val::Tagged((tag, value).into()))
         })?;
 
         it.def("+", |mut argv| {
@@ -240,6 +250,7 @@ impl Interpreter {
             let string = it.names.intern("string");
             let symbol = it.names.intern("symbol");
             let cons = it.names.intern("cons");
+            let tagged = it.names.intern("tagged");
             let closure = it.names.intern("closure");
 
             it.def("type", move |mut argv| {
@@ -253,6 +264,7 @@ impl Interpreter {
                     Val::Str(_) => string,
                     Val::Symbol(_) => symbol,
                     Val::Cons(_) => cons,
+                    Val::Tagged(_) => tagged,
                     Val::FnRef(_) => closure,
                 }))
             })?;
@@ -713,6 +725,23 @@ impl<'a> Fmt<'a> {
                 }
 
                 self.buf.push(')');
+            },
+
+            Val::Tagged(ref pair) => {
+                let &(tag, ref value) = pair.as_ref();
+
+                let tag = match self.names.resolve(tag)? {
+                    "quote" => "'",
+                    "quasi" => "`",
+                    "fnquote" => "#'",
+                    "unquote" => ",",
+                    "unsplice" => ",@",
+                    _ => return Err(Error::IllegalToken),
+                };
+
+                self.buf.push_str(tag);
+
+                self.write(value)?;
             },
 
             Val::FnRef(_) => {
