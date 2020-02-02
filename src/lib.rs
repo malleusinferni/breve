@@ -1,5 +1,4 @@
-#[macro_use]
-extern crate failure_derive;
+use displaydoc::Display;
 
 use std::sync::Arc;
 
@@ -15,86 +14,86 @@ pub type Result<T, E=Error> = std::result::Result<T, E>;
 pub use crate::env::*;
 pub use crate::val::*;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Display)]
 pub enum Error {
-    #[fail(display="expected {}, found {}", wanted, found)]
+    /// expected {wanted}, found {found}
     WrongType {
         wanted: &'static str,
         found: &'static str,
     },
 
-    #[fail(display="expression is not a list")]
+    /// expression is not a list
     NotAList,
 
-    #[fail(display="no such symbol {:?}", symbol)]
+    /// no such symbol {symbol:?}
     NoSuchSymbol {
         symbol: Symbol,
     },
 
-    #[fail(display="stack underflow in call stack")]
+    /// stack underflow in call stack
     CallStackUnderflow,
 
-    #[fail(display="stack underflow in local expression")]
+    /// stack underflow in local expression
     ExprStackUnderflow,
 
-    #[fail(display="unmatched closing parenthesis")]
+    /// unmatched closing parenthesis
     UnmatchedRightParen,
 
-    #[fail(display="ampersand outside list context")]
+    /// ampersand outside list context
     UnexpectedAmpersand,
 
-    #[fail(display="expected expression in list tail")]
+    /// expected expression in list tail
     ExpectedExpr,
 
-    #[fail(display="unclosed list (unmatched left paren)")]
+    /// unclosed list (unmatched left paren)
     UnclosedList,
 
-    #[fail(display="failed to parse list")]
+    /// failed to parse list
     FailedToParseList,
 
-    #[fail(display="unexpected end of input")]
+    /// unexpected end of input
     UnexpectedEof,
 
-    #[fail(display="name not found: {}", name)]
+    /// name not found: {name}
     NameNotFound {
         name: String,
     },
 
-    #[fail(display="no such label")]
+    /// no such label
     NoSuchLabel,
 
-    #[fail(display="too few arguments for function call")]
+    /// too few arguments for function call
     TooFewArgs,
 
-    #[fail(display="too many arguments in function call")]
+    /// too many arguments in function call
     TooManyArgs,
 
-    #[fail(display="internal error: label redefined")]
+    /// internal error: label redefined
     LabelRedefined,
 
-    #[fail(display="argument {} redefined", name)]
+    /// argument {name} redefined
     ArgRedefined {
         name: String,
     },
 
-    #[fail(display="local variable {} redefined", name)]
+    /// local variable {name} redefined
     LocalRedefined {
         name: String,
     },
 
-    #[fail(display="encountered an illegal token")]
+    /// encountered an illegal token
     IllegalToken,
 
-    #[fail(display="unquoted value outside of quasiquote")]
+    /// unquoted value outside of quasiquote
     IllegalUnquote,
 
-    #[fail(display="illegal macro invocation")]
+    /// illegal macro invocation
     MacroCall,
 
-    #[fail(display="unimplemented form {}", form)]
+    /// unimplemented form {form}
     UnimplementedForm { form: String },
 
-    #[fail(display="assertion failed")]
+    /// assertion failed
     AssertFailed,
 }
 
