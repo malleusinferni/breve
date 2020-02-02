@@ -112,7 +112,7 @@ impl Default for Env {
 
 #[test]
 fn closure() {
-    use NameTable;
+    use crate::NameTable;
 
     let mut names = NameTable::default();
     let t = names.intern("t");

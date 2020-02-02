@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ordermap::OrderMap;
 
-use opcode::Closure;
+use crate::opcode::Closure;
 
 use super::*;
 
@@ -90,7 +90,7 @@ impl Val {
 }
 
 pub trait Valuable: Sized {
-    fn from_value(Val) -> Result<Self>;
+    fn from_value(_: Val) -> Result<Self>;
 }
 
 impl Valuable for Val {

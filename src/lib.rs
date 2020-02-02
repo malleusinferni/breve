@@ -1,8 +1,5 @@
-extern crate ordermap;
-
 #[macro_use]
 extern crate failure_derive;
-extern crate failure;
 
 use std::sync::Arc;
 
@@ -15,8 +12,8 @@ pub mod opcode;
 
 pub type Result<T, E=Error> = std::result::Result<T, E>;
 
-pub use env::*;
-pub use val::*;
+pub use crate::env::*;
+pub use crate::val::*;
 
 #[derive(Debug, Fail)]
 pub enum Error {
@@ -128,7 +125,7 @@ impl Frame {
     }
 
     fn will_return(&self) -> bool {
-        use opcode::Op;
+        use crate::opcode::Op;
 
         match self.func.fetch(self.pc) {
             None | Some(Op::RET) => true,
@@ -413,7 +410,7 @@ impl Val {
 impl<'a> Eval<'a> {
     fn finish(mut self) -> Result<Val> {
         while let Some(op) = self.frame().fetch() {
-            use opcode::Op;
+            use crate::opcode::Op;
 
             if self.call_stack.is_empty() {
                 if let Op::RET = op {
@@ -444,7 +441,7 @@ impl<'a> Eval<'a> {
     }
 
     fn step(&mut self, op: opcode::Op) -> Result<()> {
-        use opcode::Op;
+        use crate::opcode::Op;
 
         match op {
             Op::LET(bindings) => {
@@ -613,7 +610,7 @@ impl<'a> Eval<'a> {
     }
 
     fn disas(&self, func: &opcode::Func) -> Result<()> {
-        use opcode::Op;
+        use crate::opcode::Op;
 
         let label = |pc| func.jump(pc).ok_or(Error::NoSuchLabel);
 

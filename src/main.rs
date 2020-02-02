@@ -1,7 +1,3 @@
-extern crate rustyline;
-
-extern crate breve;
-
 fn main() {
     let mut it = breve::Interpreter::new().unwrap();
 
