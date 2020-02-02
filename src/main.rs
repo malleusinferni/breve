@@ -2,7 +2,7 @@ fn main() {
     let mut it = breve::Interpreter::new().unwrap();
 
     if let Some(path) = std::env::args().nth(1) {
-        let source = readfile(&path).unwrap();
+        let source = std::fs::read_to_string(&path).unwrap();
 
         it.parse(&source).and_then(|input| {
             it.eval_and_print(input.into_iter())
@@ -38,13 +38,3 @@ fn main() {
     }
 }
 
-use std::io::{self, Read};
-
-fn readfile(path: &str) -> io::Result<String> {
-    use std::fs::File;
-
-    let mut buf = String::new();
-    File::open(path)?.read_to_string(&mut buf)?;
-
-    Ok(buf)
-}
