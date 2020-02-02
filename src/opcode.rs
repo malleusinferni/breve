@@ -485,7 +485,7 @@ impl Val {
             },
 
             Val::Cons(ref pair) => {
-                let (mut car, cdr) = pair.as_ref().clone();
+                let (car, cdr) = pair.as_ref().clone();
                 let cdr = cdr.unquasi(names)?;
 
                 let unsplice = names.intern("unsplice");

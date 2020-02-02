@@ -21,7 +21,7 @@ pub enum Val {
 #[derive(Clone)]
 pub enum FnRef {
     Closure(Arc<Closure>),
-    Native(Arc<Fn(ListIter) -> Result<Val>>),
+    Native(Arc<dyn Fn(ListIter) -> Result<Val>>),
 }
 
 #[derive(Copy, Clone, Debug, Hash, Eq, Ord, PartialEq, PartialOrd)]

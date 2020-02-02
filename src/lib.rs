@@ -358,7 +358,7 @@ impl Interpreter {
                     pc: 0,
                 };
 
-                let mut eval = Eval {
+                let eval = Eval {
                     root,
                     _names: &mut self.names,
                     call_stack: vec![],
